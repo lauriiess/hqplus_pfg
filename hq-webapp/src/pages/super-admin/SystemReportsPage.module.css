@@ -1,0 +1,15 @@
+.page { display: flex; flex-direction: column; gap: 20px; }
+.controls { display: flex; align-items: center; justify-content: space-between; }
+.statsRow { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+.miniStat { padding: 18px 20px; display: flex; flex-direction: column; gap: 4px; }
+.miniDot  { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; }
+.miniValue { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
+.miniLabel { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); }
+.miniSub   { font-size: 12px; font-weight: 600; }
+.row2 { display: grid; grid-template-columns: 1fr 260px; gap: 16px; }
+.chartCard { padding: 20px 20px 12px; }
+.pieCard   { padding: 20px; }
+.chartTitle { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 14px; }
+.pieLegend { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; border-top: 1px solid var(--border-lt); padding-top: 10px; }
+.pieLegendRow { display: flex; align-items: center; gap: 8px; }
+@media (max-width: 1100px) { .statsRow { grid-template-columns: repeat(2,1fr); } .row2 { grid-template-columns: 1fr; } }
