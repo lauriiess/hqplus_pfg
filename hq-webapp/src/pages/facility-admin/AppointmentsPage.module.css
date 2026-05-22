@@ -1,0 +1,108 @@
+.page { display: flex; flex-direction: column; gap: 16px; }
+
+.header { display: flex; align-items: flex-start; justify-content: space-between; }
+.title { font-size: 18px; font-weight: 700; color: var(--text); }
+.sub   { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.headerRight { display: flex; align-items: center; gap: 10px; }
+
+.viewToggle {
+  display: flex; background: var(--border-lt);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 3px; gap: 2px;
+}
+.viewBtn {
+  padding: 6px 14px; font-size: 12px; font-weight: 600;
+  border: none; border-radius: 6px;
+  color: var(--muted); background: transparent; cursor: pointer;
+  transition: all .15s;
+}
+.viewActive { background: #fff; color: var(--text); box-shadow: var(--shadow); }
+
+.filterRow {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 12px;
+}
+.liveBadge {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--success); font-weight: 500;
+}
+.liveDot {
+  width: 7px; height: 7px;
+  background: var(--success); border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .4; }
+}
+
+/* Bottleneck */
+.bottleneckCard { padding: 16px 20px; border-left: 3px solid var(--warning); background: #FFFBEB; }
+.bottleneckHeader {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 700; color: var(--warning);
+  margin-bottom: 12px;
+}
+.bottleneckItem {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 10px 0; gap: 12px;
+  border-top: 1px solid var(--warning-lt);
+}
+.bottleneckLeft { display: flex; flex-direction: column; gap: 3px; }
+.bottleneckDept   { font-size: 13px; font-weight: 700; color: var(--text); }
+.bottleneckReason { font-size: 12px; color: var(--muted); }
+.bottleneckSug {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 12px; color: var(--primary); font-weight: 500;
+}
+
+/* Main 2-col */
+.mainGrid {
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 16px;
+  align-items: start;
+}
+
+/* Dept cards */
+.deptList { display: flex; flex-direction: column; gap: 12px; }
+.deptCard { padding: 16px 18px; }
+.deptHeader {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.deptName    { font-size: 14px; font-weight: 700; color: var(--text); }
+.deptDoctors { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+.deptStats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.deptStat {
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.deptStatLabel { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+.deptStatValue { font-size: 20px; font-weight: 800; }
+
+/* Activity */
+.activityCard { padding: 18px; max-height: 540px; overflow-y: auto; }
+.actTitle { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 12px; }
+.actItem {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--border-lt);
+}
+.actItem:last-child { border-bottom: none; }
+.actIconWrap { flex-shrink: 0; margin-top: 2px; }
+.actInfo { flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.actId     { font-size: 12px; font-weight: 700; color: var(--primary); }
+.actAction { font-size: 11px; color: var(--text-2); font-weight: 500; }
+.actService { font-size: 11px; color: var(--muted); display: flex; align-items: center; }
+.actTime   { font-size: 11px; color: var(--muted-lt); flex-shrink: 0; font-weight: 500; }
+
+@media (max-width: 1100px) {
+  .mainGrid   { grid-template-columns: 1fr; }
+  .deptStats  { grid-template-columns: repeat(2, 1fr); }
+}
