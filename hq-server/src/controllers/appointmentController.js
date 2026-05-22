@@ -328,20 +328,6 @@ const getTodayAppointments = async (req, res) => {
   }
 };
 
-module.exports = {
-  bookAppointment,
-  getAppointments,
-  getAppointment,
-  updateStatus,
-  cancelAppointment,
-  getAvailableSlots,
-  getTodayAppointments,
-  getTimeSlots,
-  createTimeSlot,
-  updateTimeSlot,
-  deleteTimeSlot,
-};
-
 // ─── TimeSlot CRUD (admin) ────────────────────────────────────────────────────
 
 // GET /api/appointments/timeslots?clinicId=&serviceId=
@@ -368,7 +354,6 @@ const createTimeSlot = async (req, res) => {
       return res.status(400).json({ message: 'clinicId, startTime, endTime, and serviceName are required.' });
     }
 
-    // Auto-generate a readable label from startTime
     const toLabel = (t) => {
       const [h, m] = t.split(':').map(Number);
       const ampm = h >= 12 ? 'PM' : 'AM';
@@ -401,7 +386,6 @@ const updateTimeSlot = async (req, res) => {
     const update = {};
     allowed.forEach((f) => { if (req.body[f] !== undefined) update[f] = req.body[f]; });
 
-    // Re-generate label if startTime changes
     if (update.startTime && !update.label) {
       const [h, m] = update.startTime.split(':').map(Number);
       const ampm = h >= 12 ? 'PM' : 'AM';
@@ -424,4 +408,18 @@ const deleteTimeSlot = async (req, res) => {
   } catch (err) {
     return res.status(500).json({ message: 'Failed to delete time slot.' });
   }
+};
+
+module.exports = {
+  bookAppointment,
+  getAppointments,
+  getAppointment,
+  updateStatus,
+  cancelAppointment,
+  getAvailableSlots,
+  getTodayAppointments,
+  getTimeSlots,
+  createTimeSlot,
+  updateTimeSlot,
+  deleteTimeSlot,
 };
