@@ -1,0 +1,26 @@
+.page { display: flex; flex-direction: column; gap: 20px; }
+
+.metricsRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.tableHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  gap: 12px;
+}
+.tableTitle { font-size: 15px; font-weight: 700; color: var(--text); }
+.tableActions { display: flex; gap: 8px; align-items: center; }
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px 14px;
+}
+
+.rowActions { display: flex; gap: 6px; }
