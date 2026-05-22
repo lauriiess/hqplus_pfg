@@ -1,175 +1,192 @@
-import { useEffect, useState, useCallback } from 'react'
-import { queueApi } from '../../services/api'
+import { useState, useEffect, useCallback } from 'react'
+import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
-import Modal from '../../components/ui/Modal'
-import toast from 'react-hot-toast'
+import styles from './QueuePage.module.css'
 
-const IcoRefresh = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+const STATUSES = ['All Status', 'waiting', 'serving', 'done', 'no_show']
 
-const COLS = [
-  { status: 'waiting', label: 'Waiting',     color: 'var(--warning)', bg: 'var(--warning-lt)' },
-  { status: 'serving', label: 'Now Serving', color: 'var(--primary)', bg: 'var(--primary-lt)' },
-  { status: 'done',    label: 'Completed',   color: 'var(--success)', bg: 'var(--success-lt)' },
-]
+const statusBadge = (s) => {
+  const map = {
+    waiting:   ['badge badge-orange', 'Waiting'],
+    serving:   ['badge badge-blue',   'In Consultation'],
+    done:      ['badge badge-green',  'Completed'],
+    no_show:   ['badge badge-red',    'No Show'],
+    skipped:   ['badge badge-gray',   'Skipped'],
+    cancelled: ['badge badge-gray',   'Cancelled'],
+  }
+  const [cls, label] = map[s] || ['badge badge-gray', s]
+  return <span className={cls}>{label}</span>
+}
+
+const priorityBadge = (t) => {
+  if (t === 'Senior Citizen' || t === 'PWD' || t === 'Pregnant' || t === 'Priority')
+    return <span className="badge badge-red">Urgent</span>
+  return <span className="badge badge-gray">Normal</span>
+}
 
 export default function QueuePage() {
   const { user } = useAuth()
-  const [entries,     setEntries]     = useState([])
-  const [loading,     setLoading]     = useState(true)
-  const [walkinModal, setWalkinModal] = useState(false)
-  const [walkinForm,  setWalkinForm]  = useState({ patientName: '', patientPhone: '', serviceName: '', patientType: 'Regular', notes: '' })
-  const [saving,      setSaving]      = useState(false)
+  const [entries, setEntries]   = useState([])
+  const [metrics, setMetrics]   = useState({})
+  const [loading, setLoading]   = useState(true)
+  const [filter, setFilter]     = useState('All Status')
+  const [search, setSearch]     = useState('')
 
-  const load = useCallback(() => {
-    queueApi.list({ clinicId: user?.clinicId })
-      .then((res) => setEntries(Array.isArray(res.data) ? res.data : []))
-      .catch(() => toast.error('Failed to load queue'))
-      .finally(() => setLoading(false))
-  }, [user?.clinicId])
+  const clinicId = user?.clinicId
+
+  const load = useCallback(async () => {
+    if (!clinicId) return
+    try {
+      const [qRes, mRes] = await Promise.all([
+        api.get(`/api/queues?clinicId=${clinicId}`),
+        api.get(`/api/queues/metrics?clinicId=${clinicId}`),
+      ])
+      setEntries(qRes.data || [])
+      setMetrics(mRes.data || {})
+    } catch { /* keep existing */ }
+    finally { setLoading(false) }
+  }, [clinicId])
 
   useEffect(() => { load() }, [load])
 
-  // Auto-refresh every 20 seconds
-  useEffect(() => {
-    const t = setInterval(load, 20000)
-    return () => clearInterval(t)
-  }, [load])
-
-  const action = async (fn, label) => {
-    try { await fn(); load(); toast.success(`${label} updated.`) }
-    catch (err) { toast.error(err?.message || `${label} failed.`) }
-  }
-
-  const handleAddWalkin = async () => {
-    if (!walkinForm.patientName || !walkinForm.serviceName) { toast.error('Name and service are required.'); return }
-    setSaving(true)
+  const action = async (id, endpoint) => {
     try {
-      const res = await queueApi.addWalkin({ ...walkinForm, clinicId: user?.clinicId })
-      toast.success(`Added — Queue #${res.data?.queueNumber}`)
-      setWalkinModal(false)
-      setWalkinForm({ patientName: '', patientPhone: '', serviceName: '', patientType: 'Regular', notes: '' })
+      await api.put(`/api/queues/${id}/${endpoint}`)
       load()
-    } catch (err) {
-      toast.error(err?.message || 'Failed to add walk-in.')
-    } finally { setSaving(false) }
+    } catch (e) {
+      alert(e.response?.data?.message || 'Action failed.')
+    }
   }
 
-  const byStatus = (status) =>
-    entries.filter((e) => e.status === status).sort((a, b) => new Date(a.joinedAt) - new Date(b.joinedAt))
+  const filtered = entries.filter(e => {
+    const matchStatus = filter === 'All Status' || e.status === filter
+    const matchSearch = !search ||
+      e.patientName?.toLowerCase().includes(search.toLowerCase()) ||
+      e.queueNumber?.toLowerCase().includes(search.toLowerCase())
+    return matchStatus && matchSearch
+  })
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <div className="page-title">Queue Management</div>
-          <div className="page-subtitle">Today's walk-in queue — live view</div>
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-ghost btn-sm" onClick={load} style={{ gap: 6 }}>{IcoRefresh} Refresh</button>
-          <button className="btn btn-primary" onClick={() => setWalkinModal(true)}>+ Add Walk-in</button>
-        </div>
+    <div className={styles.page}>
+      {/* ── Metric cards ── */}
+      <div className={styles.metricsRow}>
+        <MetricCard label="Total in Queue" value={metrics.waiting ?? 0} icon="users" />
+        <MetricCard label="Avg Wait Time"  value={`${metrics.avgWaitMinutes ?? 0} min`} icon="clock" color="orange" />
+        <MetricCard label="Served Today"   value={metrics.done ?? 0} icon="trend" color="green" />
       </div>
 
-      {loading ? <div className="spinner" /> : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20, alignItems: 'start' }}>
-          {COLS.map((col) => {
-            const colEntries = byStatus(col.status)
-            return (
-              <div key={col.status}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', borderRadius: 10, background: col.bg, marginBottom: 12 }}>
-                  <span style={{ fontWeight: 700, color: col.color, fontSize: 14 }}>{col.label}</span>
-                  <span style={{ fontWeight: 800, color: col.color, fontSize: 18 }}>{colEntries.length}</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {colEntries.length === 0
-                    ? <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--muted)', fontSize: 13 }}>No patients</div>
-                    : colEntries.map((e) => <QueueCard key={e._id} entry={e} col={col} onAction={action} />)
-                  }
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
-      {/* Add Walk-in Modal */}
-      <Modal
-        open={walkinModal}
-        onClose={() => setWalkinModal(false)}
-        title="Add Walk-in Patient"
-        footer={<>
-          <button className="btn btn-ghost" onClick={() => setWalkinModal(false)}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleAddWalkin} disabled={saving}>{saving ? 'Adding...' : 'Add to Queue'}</button>
-        </>}
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div className="form-group">
-            <label className="form-label">Patient Name *</label>
-            <input className="input" value={walkinForm.patientName} onChange={(e) => setWalkinForm((f) => ({ ...f, patientName: e.target.value }))} placeholder="Full name" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Phone Number</label>
-            <input className="input" type="tel" value={walkinForm.patientPhone} onChange={(e) => setWalkinForm((f) => ({ ...f, patientPhone: e.target.value }))} placeholder="+63 9XX XXX XXXX" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Service *</label>
-            <input className="input" value={walkinForm.serviceName} onChange={(e) => setWalkinForm((f) => ({ ...f, serviceName: e.target.value }))} placeholder="e.g. General Consultation" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Patient Type</label>
-            <select className="input" value={walkinForm.patientType} onChange={(e) => setWalkinForm((f) => ({ ...f, patientType: e.target.value }))}>
-              {['Regular', 'Senior Citizen', 'PWD', 'Pregnant'].map((t) => <option key={t}>{t}</option>)}
+      {/* ── Queue table ── */}
+      <div className="card">
+        <div className={styles.tableHeader}>
+          <div className={styles.tableTitle}>Current Queue Status</div>
+          <div className={styles.tableActions}>
+            {/* Filters */}
+            <select
+              className="dropdown-select"
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+            >
+              {STATUSES.map(s => <option key={s}>{s}</option>)}
             </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Notes</label>
-            <textarea className="input" rows={2} value={walkinForm.notes} onChange={(e) => setWalkinForm((f) => ({ ...f, notes: e.target.value }))} placeholder="Optional notes" />
+            <button className="btn btn-outline btn-sm">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={load}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Refresh
+            </button>
           </div>
         </div>
-      </Modal>
+
+        <div className={styles.filterRow}>
+          <div className="search-bar" style={{ flex: 1, maxWidth: 360 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input
+              placeholder="Search patient name or queue number..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <button
+            className={`btn btn-sm ${filter === 'waiting' ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setFilter(f => f === 'waiting' ? 'All Status' : 'waiting')}
+          >
+            Urgent Only
+          </button>
+        </div>
+
+        <div className="table-wrap" style={{ borderRadius: 0, border: 'none', borderTop: '1px solid var(--border)' }}>
+          <table>
+            <thead>
+              <tr>
+                <th>Queue #</th>
+                <th>Patient Name</th>
+                <th>Department</th>
+                <th>Doctor / Staff</th>
+                <th>Check-in</th>
+                <th>Wait Time</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>Loading queue…</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>No queue entries found.</td></tr>
+              ) : filtered.map(e => (
+                <tr key={e._id}>
+                  <td><span style={{ fontWeight: 700, color: 'var(--primary)' }}>{e.queueNumber}</span></td>
+                  <td style={{ fontWeight: 600 }}>{e.patientName}</td>
+                  <td><span style={{ color: 'var(--primary)' }}>{e.serviceName}</span></td>
+                  <td><span style={{ color: 'var(--muted)' }}>—</span></td>
+                  <td style={{ color: 'var(--muted)' }}>
+                    {e.joinedAt ? new Date(e.joinedAt).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                  </td>
+                  <td style={{ fontWeight: 600 }}>
+                    {e.estimatedWaitMinutes != null ? `${e.estimatedWaitMinutes} min` : e.actualWaitMinutes != null ? `${e.actualWaitMinutes} min` : '—'}
+                  </td>
+                  <td>{priorityBadge(e.patientType)}</td>
+                  <td>{statusBadge(e.status)}</td>
+                  <td>
+                    <div className={styles.rowActions}>
+                      {e.status === 'waiting' && (
+                        <button className="btn btn-primary btn-sm" onClick={() => action(e._id, 'call')}>Call</button>
+                      )}
+                      {e.status === 'serving' && (
+                        <button className="btn btn-sm" style={{ background: 'var(--success)', color: '#fff' }} onClick={() => action(e._id, 'complete')}>Done</button>
+                      )}
+                      {e.status === 'waiting' && (
+                        <button className="btn btn-outline btn-sm" onClick={() => action(e._id, 'skip')}>Skip</button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
 
-function QueueCard({ entry: e, col, onAction }) {
-  const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }) : ''
-
+function MetricCard({ label, value, icon, color = 'blue' }) {
+  const icons = {
+    users: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    clock: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+    trend: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
+  }
+  const colorMap = { blue: 'stat-icon-blue', orange: 'stat-icon-orange', green: 'stat-icon-green' }
   return (
-    <div style={{ background: '#fff', borderRadius: 12, padding: 14, boxShadow: 'var(--shadow)', borderLeft: `4px solid ${col.color}` }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-        <div style={{ background: col.bg, color: col.color, fontWeight: 800, fontSize: 14, padding: '4px 10px', borderRadius: 6 }}>
-          #{e.queueNumber}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.patientName || '—'}</div>
-          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{e.serviceName}</div>
-        </div>
-        {e.patientType && e.patientType !== 'Regular' && (
-          <span className="badge badge-warning" style={{ fontSize: 9 }}>{e.patientType}</span>
-        )}
+    <div className="stat-card">
+      <div className="stat-card-info">
+        <div className="stat-card-label">{label}</div>
+        <div className="stat-card-value">{value}</div>
       </div>
-
-      <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-        Joined: {fmtTime(e.joinedAt)}{e.patientPhone ? ` · ${e.patientPhone}` : ''}
-      </div>
-
-      {e.status === 'waiting' && (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => onAction(() => queueApi.call(e._id), 'Call')}>Call</button>
-          <button className="btn btn-sm" style={{ flex: 1, background: 'var(--warning-lt)', color: 'var(--warning)' }} onClick={() => onAction(() => queueApi.skip(e._id), 'Skip')}>Skip</button>
-        </div>
-      )}
-      {e.status === 'serving' && (
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => onAction(() => queueApi.complete(e._id), 'Complete')}>Done</button>
-          <button className="btn btn-sm" style={{ flex: 1, background: 'var(--error-lt)', color: 'var(--error)' }} onClick={() => onAction(() => queueApi.noShow(e._id), 'No Show')}>No Show</button>
-        </div>
-      )}
-      {e.status === 'done' && (
-        <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-          {e.doneAt ? `Served at ${fmtTime(e.doneAt)}` : 'Completed'}
-        </div>
-      )}
+      <div className={`stat-card-icon ${colorMap[color]}`}>{icons[icon]}</div>
     </div>
   )
 }
