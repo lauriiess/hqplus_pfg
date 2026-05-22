@@ -3,26 +3,28 @@
  * Creates demo clinics, users (super_admin, facility_admin, staff, patients),
  * time slots, and a few sample queue entries + appointments.
  *
- * ⚠ This DELETES all existing data in the target collections first.
- *   Use only in development.
+ * WARNING: This DELETES all existing data in the target collections first.
+ * Use only in development.
+ *
+ * Fix: passwords are passed as plain text so the User pre('save') hook
+ * hashes them exactly once. Do NOT pre-hash passwords here.
  */
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
 
-const User = require('../models/User');
-const Clinic = require('../models/Clinic');
-const Patient = require('../models/Patient');
-const Staff = require('../models/Staff');
-const TimeSlot = require('../models/TimeSlot');
-const QueueEntry = require('../models/QueueEntry');
+const User        = require('../models/User');
+const Clinic      = require('../models/Clinic');
+const Patient     = require('../models/Patient');
+const Staff       = require('../models/Staff');
+const TimeSlot    = require('../models/TimeSlot');
+const QueueEntry  = require('../models/QueueEntry');
 const Appointment = require('../models/Appointment');
 
 async function main() {
   await mongoose.connect(process.env.MONGO_URI);
-  console.log('✅ Connected to MongoDB');
+  console.log('Connected to MongoDB');
 
-  // ── Clear ──────────────────────────────────────────────────────────────────
+  // Clear existing data
   await Promise.all([
     User.deleteMany({}),
     Clinic.deleteMany({}),
@@ -32,7 +34,7 @@ async function main() {
     QueueEntry.deleteMany({}),
     Appointment.deleteMany({}),
   ]);
-  console.log('🗑  Cleared existing data');
+  console.log('Cleared existing data');
 
   // ── Clinics ────────────────────────────────────────────────────────────────
   const [clinicA, clinicB] = await Clinic.create([
@@ -43,7 +45,7 @@ async function main() {
       province: 'Metro Manila',
       contactNumber: '+63 2 1234 5678',
       email: 'delacruz@healthqueue.ph',
-      operatingHours: '8:00 AM – 5:00 PM',
+      operatingHours: '8:00 AM - 5:00 PM',
       coordinates: { lat: 14.5995, lng: 120.9842 },
       acceptsWalkIn: true,
       acceptsAppointment: true,
@@ -62,7 +64,7 @@ async function main() {
       province: 'Metro Manila',
       contactNumber: '+63 2 9876 5432',
       email: 'santos@healthqueue.ph',
-      operatingHours: '7:00 AM – 7:00 PM',
+      operatingHours: '7:00 AM - 7:00 PM',
       coordinates: { lat: 14.6760, lng: 121.0437 },
       acceptsWalkIn: true,
       acceptsAppointment: true,
@@ -75,21 +77,20 @@ async function main() {
       status: 'active',
     },
   ]);
-  console.log('🏥 Clinics created:', clinicA.name, ',', clinicB.name);
+  console.log('Clinics created:', clinicA.name, '/', clinicB.name);
 
-  // ── Users ──────────────────────────────────────────────────────────────────
-  const hash = (pw) => bcrypt.hash(pw, 10);
-
+  // ── Users — pass plain text passwords, let the pre('save') hook hash them ──
+  // Do NOT call bcrypt.hash() here — that causes double hashing.
   const [superAdmin, adminA, staffA, p1, p2] = await Promise.all([
-    User.create({ fullName: 'Super Admin', email: 'superadmin@healthqueue.ph', phone: '+63 900 000 0001', password: await hash('Admin@123'), role: 'super_admin', isVerified: true }),
-    User.create({ fullName: 'Maria Dela Cruz', email: 'admin.delacruz@healthqueue.ph', phone: '+63 900 000 0002', password: await hash('Admin@123'), role: 'facility_admin', clinicId: clinicA._id, isVerified: true }),
-    User.create({ fullName: 'Juan Santos', email: 'staff.santos@healthqueue.ph', phone: '+63 900 000 0003', password: await hash('Staff@123'), role: 'staff', clinicId: clinicA._id, isVerified: true }),
-    User.create({ fullName: 'Ana Reyes', email: 'ana.reyes@gmail.com', phone: '+63 917 111 2222', password: await hash('Patient@123'), role: 'patient', isVerified: true }),
-    User.create({ fullName: 'Carlos Bautista', email: 'carlos.b@gmail.com', phone: '+63 918 333 4444', password: await hash('Patient@123'), role: 'patient', isVerified: true }),
+    User.create({ fullName: 'Super Admin',      email: 'superadmin@healthqueue.ph',      phone: '+63 900 000 0001', password: 'Admin@123',   role: 'super_admin',    isVerified: true }),
+    User.create({ fullName: 'Maria Dela Cruz',  email: 'admin.delacruz@healthqueue.ph',  phone: '+63 900 000 0002', password: 'Admin@123',   role: 'facility_admin', clinicId: clinicA._id, isVerified: true }),
+    User.create({ fullName: 'Juan Santos',      email: 'staff.santos@healthqueue.ph',    phone: '+63 900 000 0003', password: 'Staff@123',   role: 'staff',          clinicId: clinicA._id, isVerified: true }),
+    User.create({ fullName: 'Ana Reyes',        email: 'ana.reyes@gmail.com',            phone: '+63 917 111 2222', password: 'Patient@123', role: 'patient',        isVerified: true }),
+    User.create({ fullName: 'Carlos Bautista',  email: 'carlos.b@gmail.com',             phone: '+63 918 333 4444', password: 'Patient@123', role: 'patient',        isVerified: true }),
   ]);
-  console.log('👤 Users created');
+  console.log('Users created');
 
-  // Update clinic managedBy
+  // Link clinic to its admin
   clinicA.managedBy = adminA._id;
   await clinicA.save();
 
@@ -106,13 +107,22 @@ async function main() {
 
   // ── Patient profiles ───────────────────────────────────────────────────────
   const [pat1, pat2] = await Patient.create([
-    { user: p1._id, fullName: p1.fullName, email: p1.email, phone: p1.phone, dob: new Date('1992-05-15'), age: 33, gender: 'female', patientType: 'Regular', address: 'Sampaloc, Manila' },
-    { user: p2._id, fullName: p2.fullName, email: p2.email, phone: p2.phone, dob: new Date('1985-11-22'), age: 40, gender: 'male', patientType: 'Senior Citizen', address: 'Cubao, Quezon City', philHealthNumber: 'PH-123456789' },
+    {
+      user: p1._id, fullName: p1.fullName, email: p1.email, phone: p1.phone,
+      dob: new Date('1992-05-15'), age: 33, gender: 'female',
+      patientType: 'Regular', address: 'Sampaloc, Manila',
+    },
+    {
+      user: p2._id, fullName: p2.fullName, email: p2.email, phone: p2.phone,
+      dob: new Date('1985-11-22'), age: 40, gender: 'male',
+      patientType: 'Senior Citizen', address: 'Cubao, Quezon City',
+      philHealthNumber: 'PH-123456789',
+    },
   ]);
-  console.log('🧑‍⚕️ Patient profiles created');
+  console.log('Patient profiles created');
 
-  // ── Time Slots for Clinic A ────────────────────────────────────────────────
-  const days = [1, 2, 3, 4, 5]; // Mon–Fri
+  // ── Time slots for Clinic A ────────────────────────────────────────────────
+  const days = [1, 2, 3, 4, 5]; // Mon-Fri
   const slotTimes = [
     { startTime: '08:00', endTime: '08:30', label: '8:00 AM' },
     { startTime: '08:30', endTime: '09:00', label: '8:30 AM' },
@@ -124,7 +134,7 @@ async function main() {
     { startTime: '14:00', endTime: '14:30', label: '2:00 PM' },
   ];
 
-  const svc = clinicA.services[0]; // General Consultation
+  const svc = clinicA.services[0];
   const slotDocs = [];
   for (const day of days) {
     for (const t of slotTimes) {
@@ -132,7 +142,7 @@ async function main() {
     }
   }
   await TimeSlot.create(slotDocs);
-  console.log('⏰ Time slots created');
+  console.log('Time slots created');
 
   // ── Sample Queue Entries (today) ───────────────────────────────────────────
   const now = new Date();
@@ -142,10 +152,10 @@ async function main() {
       queueNumber: 'D-001', patientName: pat1.fullName, patientPhone: pat1.phone,
       patientType: 'Regular', serviceName: 'General Consultation',
       queueType: 'walk_in', status: 'done',
-      joinedAt: new Date(now.getTime() - 90 * 60000),
-      calledAt: new Date(now.getTime() - 75 * 60000),
-      servedAt: new Date(now.getTime() - 75 * 60000),
-      doneAt: new Date(now.getTime() - 60 * 60000),
+      joinedAt:  new Date(now.getTime() - 90 * 60000),
+      calledAt:  new Date(now.getTime() - 75 * 60000),
+      servedAt:  new Date(now.getTime() - 75 * 60000),
+      doneAt:    new Date(now.getTime() - 60 * 60000),
       actualWaitMinutes: 15, turnaroundMinutes: 30, positionAtJoin: 1,
     },
     {
@@ -157,7 +167,7 @@ async function main() {
       positionAtJoin: 2, estimatedWaitMinutes: 20,
     },
   ]);
-  console.log('🔢 Queue entries created');
+  console.log('Queue entries created');
 
   // ── Sample Appointment ─────────────────────────────────────────────────────
   const tomorrow = new Date(now);
@@ -179,16 +189,15 @@ async function main() {
     status: 'confirmed',
     confirmedAt: new Date(),
   });
-  console.log('📅 Sample appointment created');
+  console.log('Sample appointment created');
 
-  console.log('\n✅ Seed complete!\n');
-  console.log('── Login credentials ─────────────────────────────────');
-  console.log('Super Admin:     superadmin@healthqueue.ph   / Admin@123');
-  console.log('Facility Admin:  admin.delacruz@healthqueue.ph / Admin@123');
-  console.log('Staff:           staff.santos@healthqueue.ph  / Staff@123');
-  console.log('Patient 1:       ana.reyes@gmail.com           / Patient@123');
-  console.log('Patient 2:       carlos.b@gmail.com            / Patient@123');
-  console.log('─────────────────────────────────────────────────────\n');
+  console.log('\nSeed complete!\n');
+  console.log('Login credentials:');
+  console.log('  Super Admin:    superadmin@healthqueue.ph      / Admin@123');
+  console.log('  Facility Admin: admin.delacruz@healthqueue.ph  / Admin@123');
+  console.log('  Staff:          staff.santos@healthqueue.ph    / Staff@123');
+  console.log('  Patient:        ana.reyes@gmail.com            / Patient@123');
+  console.log('  Patient:        carlos.b@gmail.com             / Patient@123');
 
   await mongoose.disconnect();
 }
