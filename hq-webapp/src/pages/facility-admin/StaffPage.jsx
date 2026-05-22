@@ -1,182 +1,222 @@
-import { useEffect, useState, useCallback } from 'react'
-import { staffApi } from '../../services/api'
+import { useState, useEffect } from 'react'
+import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
-import Modal from '../../components/ui/Modal'
-import toast from 'react-hot-toast'
+import styles from './StaffPage.module.css'
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-const POSITIONS = ['Receptionist', 'Nurse', 'Doctor', 'Specialist', 'Medical Assistant', 'Other']
+const ROLE_LABELS = {
+  doctor: 'Doctor', nurse: 'Nurse', midwife: 'Midwife',
+  med_tech: 'Med Tech', pharmacist: 'Pharmacist', admin: 'Admin Staff',
+}
+
+const roleBadge = (r) => {
+  const map = {
+    doctor:      'badge-blue',
+    nurse:       'badge-green',
+    midwife:     'badge-teal',
+    med_tech:    'badge-purple',
+    pharmacist:  'badge-orange',
+    admin:       'badge-gray',
+  }
+  return <span className={`badge ${map[r] || 'badge-gray'}`}>{ROLE_LABELS[r] || r}</span>
+}
+
+const statusBadge = (s) => s === 'active'
+  ? <span className="badge badge-green">Active</span>
+  : <span className="badge badge-gray">Inactive</span>
 
 export default function StaffPage() {
   const { user } = useAuth()
-  const [staff,    setStaff]    = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [selected, setSelected] = useState(null)
-  const [modal,    setModal]    = useState(null)
-  const [form,     setForm]     = useState({})
-  const [saving,   setSaving]   = useState(false)
+  const [staff, setStaff]     = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch]   = useState('')
+  const [roleFilter, setRole] = useState('All')
+  const [showModal, setShowModal] = useState(false)
+  const [editing, setEditing]     = useState(null)
+  const [form, setForm] = useState({ fullName: '', email: '', phone: '', role: 'doctor', specialization: '', status: 'active' })
+  const [saving, setSaving] = useState(false)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    staffApi.list({ clinicId: user?.clinicId })
-      .then((r) => setStaff(r.data))
-      .catch(() => toast.error('Failed to load staff'))
+  const clinicId = user?.clinicId
+
+  const load = () => {
+    if (!clinicId) { setLoading(false); return }
+    api.get(`/api/staff?clinicId=${clinicId}`)
+      .then(r => setStaff(r.data || []))
+      .catch(() => setStaff([]))
       .finally(() => setLoading(false))
-  }, [user?.clinicId])
+  }
 
-  useEffect(() => { load() }, [load])
+  useEffect(load, [clinicId])
 
-  const openEdit   = (s) => { setSelected(s); setForm({ position: s.position, specialization: s.specialization || '', licenseNumber: s.licenseNumber || '', phone: s.phone || '', schedule: s.schedule || [], isActive: s.isActive }); setModal('edit') }
-  const openDeact  = (s) => { setSelected(s); setModal('deactivate') }
-  const openSched  = (s) => { setSelected(s); setForm({ schedule: s.schedule || [] }); setModal('schedule') }
-  const closeModal = () => { setModal(null); setSelected(null) }
+  const openAdd = () => {
+    setEditing(null)
+    setForm({ fullName: '', email: '', phone: '', role: 'doctor', specialization: '', status: 'active' })
+    setShowModal(true)
+  }
+  const openEdit = (s) => {
+    setEditing(s)
+    setForm({ fullName: s.fullName, email: s.email, phone: s.phone, role: s.role, specialization: s.specialization, status: s.status })
+    setShowModal(true)
+  }
 
-  const handleSave = async () => {
+  const save = async () => {
     setSaving(true)
     try {
-      await staffApi.update(selected._id, form)
-      toast.success('Staff updated.')
-      closeModal(); load()
-    } catch (err) { toast.error(err.message) }
-    finally { setSaving(false) }
+      if (editing) await api.put(`/api/staff/${editing._id}`, form)
+      else         await api.post('/api/staff', { ...form, clinicId })
+      setShowModal(false)
+      load()
+    } catch (e) {
+      alert(e.response?.data?.message || 'Failed to save.')
+    } finally { setSaving(false) }
   }
 
-  const handleDeactivate = async () => {
-    setSaving(true)
-    try {
-      await staffApi.deactivate(selected._id)
-      toast.success('Staff deactivated.')
-      closeModal(); load()
-    } catch (err) { toast.error(err.message) }
-    finally { setSaving(false) }
+  const remove = async (id) => {
+    if (!confirm('Remove this staff member?')) return
+    await api.delete(`/api/staff/${id}`).catch(() => {})
+    load()
   }
 
-  const toggleDay = (day) => {
-    const sched = form.schedule || []
-    const exists = sched.find((s) => s.day === day)
-    if (exists) {
-      setForm((f) => ({ ...f, schedule: sched.filter((s) => s.day !== day) }))
-    } else {
-      setForm((f) => ({ ...f, schedule: [...sched, { day, startTime: '08:00', endTime: '17:00', isAvailable: true }] }))
-    }
-  }
+  const filtered = staff.filter(s => {
+    const matchRole   = roleFilter === 'All' || s.role === roleFilter
+    const matchSearch = !search || s.fullName?.toLowerCase().includes(search.toLowerCase()) || s.email?.toLowerCase().includes(search.toLowerCase())
+    return matchRole && matchSearch
+  })
 
-  const updateSlot = (day, field, val) => {
-    setForm((f) => ({ ...f, schedule: f.schedule.map((s) => s.day === day ? { ...s, [field]: val } : s) }))
-  }
+  const roles = ['All', ...Object.keys(ROLE_LABELS)]
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <div className="page-title">Staff Management</div>
-          <div className="page-subtitle">Manage clinic staff profiles, roles, and schedules</div>
+    <div className={styles.page}>
+      <div className="card">
+        {/* Header */}
+        <div className={styles.header}>
+          <div>
+            <div className={styles.title}>Staff Management</div>
+            <div className={styles.sub}>Manage facility staff and their assignments</div>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={openAdd}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add Staff
+          </button>
         </div>
-      </div>
 
-      {loading ? <div className="spinner" /> : (
-        <div className="table-wrap card" style={{ padding: 0 }}>
+        {/* Toolbar */}
+        <div className={styles.toolbar}>
+          <div className="search-bar" style={{ flex: 1 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input placeholder="Search staff by name or email..." value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <select className="dropdown-select" value={roleFilter} onChange={e => setRole(e.target.value)}>
+            {roles.map(r => <option key={r} value={r}>{r === 'All' ? 'All Roles' : ROLE_LABELS[r]}</option>)}
+          </select>
+        </div>
+
+        {/* Table */}
+        <div className="table-wrap" style={{ borderRadius: 0, border: 'none', borderTop: '1px solid var(--border)' }}>
           <table>
             <thead>
-              <tr><th>Name</th><th>Position</th><th>Specialization</th><th>Phone</th><th>Schedule</th><th>Status</th><th>Actions</th></tr>
+              <tr>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Specialization</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
             </thead>
             <tbody>
-              {staff.length === 0
-                ? <tr><td colSpan={7}><div className="empty-state">No staff found. Add staff through User Management.</div></td></tr>
-                : staff.map((s) => (
-                  <tr key={s._id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--primary-lt)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
-                          {s.fullName?.[0]?.toUpperCase()}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 600 }}>{s.fullName}</div>
-                          <div style={{ fontSize: 12, color: 'var(--muted)' }}>{s.user?.email}</div>
-                        </div>
+              {loading ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>Loading…</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>No staff found.</td></tr>
+              ) : filtered.map(s => (
+                <tr key={s._id}>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 32, height: 32, background: 'var(--primary-lt)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, color: 'var(--primary)', fontSize: 13 }}>
+                        {s.fullName?.[0]?.toUpperCase()}
                       </div>
-                    </td>
-                    <td><span className="badge badge-primary">{s.position}</span></td>
-                    <td style={{ fontSize: 13 }}>{s.specialization || '—'}</td>
-                    <td style={{ fontSize: 13 }}>{s.phone || '—'}</td>
-                    <td style={{ fontSize: 12 }}>{s.schedule?.length > 0 ? s.schedule.map((d) => d.day.slice(0, 3)).join(', ') : 'Not set'}</td>
-                    <td><span className={`badge ${s.isActive ? 'badge-success' : 'badge-muted'}`}>{s.isActive ? 'Active' : 'Inactive'}</span></td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>Edit</button>
-                        <button className="btn btn-outline btn-sm" onClick={() => openSched(s)}>Schedule</button>
-                        {s.isActive && <button className="btn btn-sm" style={{ background: 'var(--warning-lt)', color: 'var(--warning)' }} onClick={() => openDeact(s)}>Deactivate</button>}
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>{s.fullName}</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>{s.email}</div>
                       </div>
-                    </td>
-                  </tr>
-                ))}
+                    </div>
+                  </td>
+                  <td>{roleBadge(s.role)}</td>
+                  <td style={{ color: 'var(--muted)', fontSize: 12 }}>{s.specialization || '—'}</td>
+                  <td style={{ color: 'var(--muted)', fontSize: 12 }}>{s.phone || '—'}</td>
+                  <td>{statusBadge(s.status)}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-icon btn-outline" onClick={() => openEdit(s)} title="Edit">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
+                      <button className="btn btn-icon" style={{ background: 'var(--error-lt)', color: 'var(--error)' }} onClick={() => remove(s._id)} title="Remove">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-      )}
 
-      {/* Edit Modal */}
-      <Modal open={modal === 'edit'} onClose={closeModal} title={`Edit — ${selected?.fullName}`}
-        footer={<><button className="btn btn-ghost" onClick={closeModal}>Cancel</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button></>}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div className="form-group">
-            <label className="form-label">Position</label>
-            <select className="input" value={form.position || ''} onChange={(e) => setForm((f) => ({ ...f, position: e.target.value }))}>
-              {POSITIONS.map((p) => <option key={p}>{p}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Phone</label>
-            <input className="input" value={form.phone || ''} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Specialization</label>
-            <input className="input" value={form.specialization || ''} onChange={(e) => setForm((f) => ({ ...f, specialization: e.target.value }))} placeholder="e.g. Pediatrics" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">License Number</label>
-            <input className="input" value={form.licenseNumber || ''} onChange={(e) => setForm((f) => ({ ...f, licenseNumber: e.target.value }))} />
-          </div>
+        {/* Count */}
+        <div style={{ padding: '12px 16px', fontSize: 12, color: 'var(--muted)', borderTop: '1px solid var(--border)' }}>
+          Showing {filtered.length} of {staff.length} staff members
         </div>
-      </Modal>
+      </div>
 
-      {/* Schedule Modal */}
-      <Modal open={modal === 'schedule'} onClose={closeModal} title={`Schedule — ${selected?.fullName}`} width={540}
-        footer={<><button className="btn btn-ghost" onClick={closeModal}>Cancel</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Schedule'}</button></>}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {DAYS.map((day) => {
-            const slot = (form.schedule || []).find((s) => s.day === day)
-            return (
-              <div key={day} style={{ display: 'grid', gridTemplateColumns: '120px 1fr 1fr', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: slot ? 600 : 400 }}>
-                  <input type="checkbox" checked={!!slot} onChange={() => toggleDay(day)} />
-                  {day}
-                </label>
-                {slot ? (
-                  <>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 11 }}>Start</label>
-                      <input className="input" type="time" value={slot.startTime} onChange={(e) => updateSlot(day, 'startTime', e.target.value)} />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: 11 }}>End</label>
-                      <input className="input" type="time" value={slot.endTime} onChange={(e) => updateSlot(day, 'endTime', e.target.value)} />
-                    </div>
-                  </>
-                ) : (
-                  <span style={{ color: 'var(--muted)', fontSize: 13, gridColumn: '2 / -1' }}>Not working</span>
-                )}
+      {/* Modal */}
+      {showModal && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
+          <div className="modal">
+            <div className="modal-header">
+              <div className="modal-title">{editing ? 'Edit Staff Member' : 'Add New Staff'}</div>
+              <button className="modal-close" onClick={() => setShowModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Full Name</label>
+                <input className="form-input" value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} placeholder="e.g. Dr. Maria Santos" />
               </div>
-            )
-          })}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input className="form-input" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Phone</label>
+                  <input className="form-input" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div className="form-group">
+                  <label className="form-label">Role</label>
+                  <select className="form-select" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+                    {Object.entries(ROLE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Status</label>
+                  <select className="form-select" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Specialization</label>
+                <input className="form-input" value={form.specialization} onChange={e => setForm(f => ({ ...f, specialization: e.target.value }))} placeholder="e.g. General Medicine, Pediatrics" />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Staff'}</button>
+            </div>
+          </div>
         </div>
-      </Modal>
-
-      {/* Deactivate Confirm */}
-      <Modal open={modal === 'deactivate'} onClose={closeModal} title="Deactivate Staff"
-        footer={<><button className="btn btn-ghost" onClick={closeModal}>Cancel</button><button className="btn btn-warning" onClick={handleDeactivate} disabled={saving}>{saving ? '...' : 'Yes, Deactivate'}</button></>}>
-        <p style={{ fontSize: 14 }}>Deactivate <strong>{selected?.fullName}</strong>? They will lose system access.</p>
-      </Modal>
+      )}
     </div>
   )
 }
