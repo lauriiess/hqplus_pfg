@@ -56,7 +56,7 @@ class AppTheme {
             borderRadius: BorderRadius.circular(12),
           ),
           side: const BorderSide(
-            color: Color(0xFF1A6BC4), // AppColors.primary — inlined for const compatibility
+            color: Color(0xFF1A6BC4),
             width: 1.5,
           ),
         ),
@@ -96,7 +96,7 @@ class AppTheme {
           borderRadius: BorderRadius.circular(16),
         ),
         color: Colors.white,
-        margin: EdgeInsets.zero,
+        // margin removed — not a valid CardTheme property in Flutter 3.x+
       ),
       chipTheme: ChipThemeData(
         shape: RoundedRectangleBorder(
