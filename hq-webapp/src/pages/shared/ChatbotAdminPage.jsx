@@ -1,184 +1,217 @@
-import { useEffect, useState } from 'react'
-import { chatbotAdminApi } from '../../services/api'
-import Modal from '../../components/ui/Modal'
-import toast from 'react-hot-toast'
+import { useState, useEffect } from 'react'
+import api from '../../services/api'
+import styles from './ChatbotAdminPage.module.css'
 
-const CATEGORIES = ['General', 'Queue', 'Appointments', 'Clinic', 'Account', 'Technical']
-const EMPTY_FAQ = { question: '', answer: '', category: 'General', isActive: true }
+const TABS = ['Responses', 'Settings', 'Analytics']
+
+const CATEGORY_COLORS = {
+  'Queue': 'badge-blue',
+  'Appointments': 'badge-green',
+  'General Info': 'badge-teal',
+  'Account': 'badge-purple',
+  'Clinic': 'badge-orange',
+}
 
 export default function ChatbotAdminPage() {
-  const [tab,      setTab]      = useState('faqs')
-  const [faqs,     setFaqs]     = useState([])
-  const [logs,     setLogs]     = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [selected, setSelected] = useState(null)
-  const [modal,    setModal]    = useState(null)
-  const [form,     setForm]     = useState(EMPTY_FAQ)
-  const [saving,   setSaving]   = useState(false)
-  const [catFilter, setCatFilter] = useState('all')
+  const [tab, setTab]       = useState('Responses')
+  const [faqs, setFaqs]     = useState([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const [editing, setEditing]   = useState(null)
+  const [form, setForm] = useState({ question: '', answer: '', category: 'General Info', isActive: true })
+  const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    if (tab === 'faqs') {
-      setLoading(true)
-      chatbotAdminApi.getFAQs()
-        .then((r) => setFaqs(r.data))
-        .catch(() => toast.error('Failed to load FAQs'))
-        .finally(() => setLoading(false))
-    } else {
-      setLoading(true)
-      chatbotAdminApi.getLogs()
-        .then((r) => setLogs(r.data))
-        .catch(() => toast.error('Failed to load logs'))
-        .finally(() => setLoading(false))
-    }
-  }, [tab])
-
-  const openCreate = () => { setForm(EMPTY_FAQ); setModal('create') }
-  const openEdit   = (f) => { setSelected(f); setForm({ question: f.question, answer: f.answer, category: f.category, isActive: f.isActive }); setModal('edit') }
-  const openDelete = (f) => { setSelected(f); setModal('delete') }
-  const closeModal = () => { setModal(null); setSelected(null) }
-
-  const handleSave = async () => {
-    if (!form.question || !form.answer) { toast.error('Question and answer are required.'); return }
-    setSaving(true)
+  const load = async () => {
     try {
-      if (modal === 'create') { await chatbotAdminApi.createFAQ(form); toast.success('FAQ created.') }
-      else { await chatbotAdminApi.updateFAQ(selected._id, form); toast.success('FAQ updated.') }
-      closeModal()
-      chatbotAdminApi.getFAQs().then((r) => setFaqs(r.data))
-    } catch (err) { toast.error(err.message) }
-    finally { setSaving(false) }
+      const r = await api.get('/api/chatbot/admin/faqs')
+      setFaqs(r.data || [])
+    } catch { setFaqs([]) }
+    finally { setLoading(false) }
   }
 
-  const handleDelete = async () => {
-    setSaving(true)
-    try {
-      await chatbotAdminApi.deleteFAQ(selected._id)
-      toast.success('FAQ deleted.')
-      closeModal()
-      setFaqs((prev) => prev.filter((f) => f._id !== selected._id))
-    } catch (err) { toast.error(err.message) }
-    finally { setSaving(false) }
+  useEffect(() => { load() }, [])
+
+  const openAdd = () => {
+    setEditing(null)
+    setForm({ question: '', answer: '', category: 'General Info', isActive: true })
+    setShowModal(true)
+  }
+  const openEdit = (faq) => {
+    setEditing(faq)
+    setForm({ question: faq.question, answer: faq.answer, category: faq.category, isActive: faq.isActive })
+    setShowModal(true)
   }
 
-  const filteredFaqs = catFilter === 'all' ? faqs : faqs.filter((f) => f.category === catFilter)
-  const fmtDate = (iso) => iso ? new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
+  const save = async () => {
+    setSaving(true)
+    try {
+      if (editing) {
+        await api.put(`/api/chatbot/admin/faqs/${editing._id}`, form)
+      } else {
+        await api.post('/api/chatbot/admin/faqs', form)
+      }
+      setShowModal(false)
+      load()
+    } catch (e) {
+      alert(e.response?.data?.message || 'Failed to save.')
+    } finally { setSaving(false) }
+  }
+
+  const remove = async (id) => {
+    if (!confirm('Delete this response?')) return
+    try {
+      await api.delete(`/api/chatbot/admin/faqs/${id}`)
+      load()
+    } catch { alert('Failed to delete.') }
+  }
+
+  const toggle = async (faq) => {
+    try {
+      await api.put(`/api/chatbot/admin/faqs/${faq._id}`, { ...faq, isActive: !faq.isActive })
+      load()
+    } catch { alert('Failed to update.') }
+  }
+
+  const filtered = faqs.filter(f =>
+    !search ||
+    f.question?.toLowerCase().includes(search.toLowerCase()) ||
+    f.answer?.toLowerCase().includes(search.toLowerCase())
+  )
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <div className="page-title">Chatbot Administration</div>
-          <div className="page-subtitle">Manage FAQs, service info, and inquiry logs</div>
+    <div className={styles.page}>
+      {/* Header */}
+      <div className={`card ${styles.pageHeader}`}>
+        <div className={styles.headerLeft}>
+          <div className={styles.headerIcon}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <div>
+            <div className={styles.headerTitle}>Chatbot Administration</div>
+            <div className={styles.headerSub}>Manage automated responses and chatbot settings</div>
+          </div>
         </div>
-        {tab === 'faqs' && <button className="btn btn-primary" onClick={openCreate}>+ Add FAQ</button>}
+        <div className={styles.statusBadge}>
+          <span className={styles.statusDot} />
+          Active
+        </div>
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 24, borderBottom: '2px solid var(--border)' }}>
-        {[['faqs', 'FAQ Management'], ['logs', 'Inquiry Logs']].map(([key, label]) => (
-          <button key={key} onClick={() => setTab(key)}
-            style={{ padding: '10px 20px', fontWeight: 700, fontSize: 14, background: 'none', border: 'none', borderBottom: `2px solid ${tab === key ? 'var(--primary)' : 'transparent'}`, color: tab === key ? 'var(--primary)' : 'var(--muted)', marginBottom: -2, cursor: 'pointer' }}>
-            {label}
-          </button>
+      <div className="tabs">
+        {TABS.map(t => (
+          <button key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{t}</button>
         ))}
       </div>
 
-      {tab === 'faqs' && (
-        <>
-          <div className="card" style={{ marginBottom: 16, padding: '12px 16px', display: 'flex', gap: 10, alignItems: 'center' }}>
-            <span style={{ fontSize: 13, color: 'var(--muted)' }}>Filter:</span>
-            {['all', ...CATEGORIES].map((cat) => (
-              <button key={cat} className={`btn btn-sm ${catFilter === cat ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setCatFilter(cat)}>
-                {cat === 'all' ? 'All' : cat}
-              </button>
-            ))}
-          </div>
-
-          {loading ? <div className="spinner" /> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {filteredFaqs.length === 0
-                ? <div className="empty-state card">No FAQs found. Add your first FAQ.</div>
-                : filteredFaqs.map((f) => (
-                  <div key={f._id} className="card" style={{ padding: '16px 20px' }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                          <span className="badge badge-primary" style={{ fontSize: 10 }}>{f.category}</span>
-                          {!f.isActive && <span className="badge badge-muted" style={{ fontSize: 10 }}>Hidden</span>}
-                        </div>
-                        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>Q: {f.question}</div>
-                        <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>A: {f.answer}</div>
-                      </div>
-                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(f)}>Edit</button>
-                        <button className="btn btn-sm" style={{ background: 'var(--error-lt)', color: 'var(--error)' }} onClick={() => openDelete(f)}>Delete</button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+      {tab === 'Responses' && (
+        <div className={styles.responsesPane}>
+          <div className={styles.toolbar}>
+            <div className="search-bar" style={{ flex: 1, maxWidth: 320 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input placeholder="Search responses..." value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-          )}
-        </>
-      )}
+            <button className="btn btn-primary btn-sm" onClick={openAdd}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Response
+            </button>
+          </div>
 
-      {tab === 'logs' && (
-        <>
-          {loading ? <div className="spinner" /> : (
-            <div className="table-wrap card" style={{ padding: 0 }}>
-              <table>
-                <thead>
-                  <tr><th>Time</th><th>Patient</th><th>Message</th><th>Reply</th><th>Source</th></tr>
-                </thead>
-                <tbody>
-                  {logs.length === 0
-                    ? <tr><td colSpan={5}><div className="empty-state">No chat logs yet.</div></td></tr>
-                    : logs.map((l) => (
-                      <tr key={l._id}>
-                        <td style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{fmtDate(l.createdAt)}</td>
-                        <td style={{ fontSize: 13 }}>{l.patient?.fullName || l.senderId || 'Anonymous'}</td>
-                        <td style={{ fontSize: 13, maxWidth: 200 }}>{l.message}</td>
-                        <td style={{ fontSize: 12, color: 'var(--muted)', maxWidth: 240 }}>{l.reply}</td>
-                        <td><span className={`badge ${l.isFallback ? 'badge-muted' : 'badge-success'}`}>{l.isFallback ? 'Rule-based' : 'FAQ / Rasa'}</span></td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+          {loading ? (
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--muted)' }}>Loading…</div>
+          ) : filtered.length === 0 ? (
+            <div className="empty">
+              <div className="empty-title">No responses found</div>
+              <div className="empty-desc">Add your first chatbot response above.</div>
             </div>
-          )}
-        </>
-      )}
-
-      {/* Create / Edit Modal */}
-      <Modal open={modal === 'create' || modal === 'edit'} onClose={closeModal}
-        title={modal === 'create' ? 'Add FAQ' : 'Edit FAQ'}
-        footer={<><button className="btn btn-ghost" onClick={closeModal}>Cancel</button><button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button></>}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div className="form-group">
-            <label className="form-label">Category</label>
-            <select className="input" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}>
-              {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Question *</label>
-            <input className="input" value={form.question} onChange={(e) => setForm((f) => ({ ...f, question: e.target.value }))} placeholder="e.g. How do I join a queue?" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Answer *</label>
-            <textarea className="input" rows={4} value={form.answer} onChange={(e) => setForm((f) => ({ ...f, answer: e.target.value }))} placeholder="Provide a clear, helpful answer..." />
-          </div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
-            <input type="checkbox" checked={form.isActive} onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))} />
-            Active (visible to chatbot)
-          </label>
+          ) : filtered.map(faq => (
+            <div key={faq._id} className={`card ${styles.faqCard}`}>
+              <div className={styles.faqHeader}>
+                <div className={styles.faqMeta}>
+                  <span className={styles.faqTitle}>{faq.question}</span>
+                  <span className={`badge ${CATEGORY_COLORS[faq.category] || 'badge-gray'}`}>{faq.category}</span>
+                  <span className={`badge ${faq.isActive ? 'badge-green' : 'badge-gray'}`}>
+                    {faq.isActive ? 'Active' : 'Disabled'}
+                  </span>
+                </div>
+              </div>
+              <div className={styles.faqKeywords}>
+                Keywords: {faq.keywords?.join(', ') || '—'}
+              </div>
+              <div className={styles.faqAnswer}>{faq.answer}</div>
+              {faq.usageCount != null && (
+                <div className={styles.faqUsage}>Used {faq.usageCount} times</div>
+              )}
+              <div className={styles.faqActions}>
+                <button className="btn btn-outline btn-sm" onClick={() => openEdit(faq)}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Edit
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={() => toggle(faq)}>
+                  {faq.isActive ? (
+                    <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg> Disable</>
+                  ) : (
+                    <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Enable</>
+                  )}
+                </button>
+                <button className="btn btn-sm" style={{ background: 'var(--error-lt)', color: 'var(--error)' }} onClick={() => remove(faq._id)}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
-      </Modal>
+      )}
 
-      <Modal open={modal === 'delete'} onClose={closeModal} title="Delete FAQ"
-        footer={<><button className="btn btn-ghost" onClick={closeModal}>Cancel</button><button className="btn btn-error" onClick={handleDelete} disabled={saving}>{saving ? '...' : 'Yes, Delete'}</button></>}>
-        <p style={{ fontSize: 14 }}>Delete this FAQ? The chatbot will no longer use it.</p>
-      </Modal>
+      {tab === 'Settings' && (
+        <div className="card card-p">
+          <div style={{ color: 'var(--muted)', fontSize: 13 }}>Chatbot settings panel — configure Rasa integration and fallback behavior.</div>
+        </div>
+      )}
+
+      {tab === 'Analytics' && (
+        <div className="card card-p">
+          <div style={{ color: 'var(--muted)', fontSize: 13 }}>Chatbot analytics — response usage metrics and conversation stats.</div>
+        </div>
+      )}
+
+      {/* Add/Edit Modal */}
+      {showModal && (
+        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
+          <div className="modal">
+            <div className="modal-header">
+              <div className="modal-title">{editing ? 'Edit Response' : 'Add New Response'}</div>
+              <button className="modal-close" onClick={() => setShowModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Question / Intent</label>
+                <input className="form-input" value={form.question} onChange={e => setForm(f => ({ ...f, question: e.target.value }))} placeholder="e.g. How do I join a queue?" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Answer</label>
+                <textarea className="form-textarea" rows={4} value={form.answer} onChange={e => setForm(f => ({ ...f, answer: e.target.value }))} placeholder="Type the chatbot's response…" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Category</label>
+                <select className="form-select" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+                  {['Queue', 'Appointments', 'General Info', 'Account', 'Clinic'].map(c => <option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <label className={styles.checkRow}>
+                <input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} />
+                <span>Active (visible to patients)</span>
+              </label>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save Response'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
