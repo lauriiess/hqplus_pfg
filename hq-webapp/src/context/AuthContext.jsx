@@ -29,12 +29,23 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (email, password) => {
-    const res = await authApi.login(email, password);
+    // Call API directly (bypass the interceptor's string-rejection)
+    let res;
+    try {
+      res = await authApi.login(email, password);
+    } catch (err) {
+      // err may be a plain string (from interceptor) or an Error object
+      const msg = typeof err === 'string' ? err : err?.response?.data?.message || err?.message || 'Login failed.';
+      throw new Error(msg);
+    }
+
     const { token, user: u } = res.data;
-    // Only allow admin roles on web
+
+    // Only allow admin roles on the web portal
     if (!['super_admin', 'facility_admin'].includes(u.role)) {
       throw new Error('Access denied. This portal is for admin staff only.');
     }
+
     localStorage.setItem('hq_token', token);
     localStorage.setItem('hq_user', JSON.stringify(u));
     setUser(u);

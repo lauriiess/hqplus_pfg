@@ -11,16 +11,21 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 globally
+// Handle 401 globally — but always reject with a proper Error object
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('hq_token');
       localStorage.removeItem('hq_user');
-      window.location.href = '/login';
+      // Only redirect if we're not already on the login page
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
     }
-    return Promise.reject(err.response?.data?.message || err.message || 'Request failed');
+    // Always reject with a real Error so catch blocks get err.message
+    const message = err.response?.data?.message || err.message || 'Request failed';
+    return Promise.reject(new Error(message));
   }
 );
 
