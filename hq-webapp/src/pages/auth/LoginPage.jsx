@@ -1,143 +1,151 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import toast from 'react-hot-toast'
+import styles from './LoginPage.module.css'
 
-const IcoLogo = (
-  <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-  </svg>
-)
-
-const IcoEye     = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-const IcoEyeOff  = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-
-const FEATURES = [
-  ['Clinic Management',    'Create and manage private clinic profiles with services'],
-  ['Queue Control',        'Real-time queue monitoring and management'],
-  ['Appointments',         'Full appointment scheduling and status tracking'],
-  ['Reports & Analytics',  'Weekly trends, peak hours, and service breakdowns'],
-]
+const EyeIcon = ({ open }) => open
+  ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+  : <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
 
 export default function LoginPage() {
-  const { login, user, loading } = useAuth()
-  const navigate = useNavigate()
-  const [email,      setEmail]      = useState('')
-  const [password,   setPassword]   = useState('')
-  const [showPw,     setShowPw]     = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [error,      setError]      = useState('')
+  const [tab, setTab]       = useState('facility') // 'facility' | 'super'
+  const [email, setEmail]   = useState('')
+  const [password, setPass] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [remember, setRemember] = useState(false)
+  const [loading, setLoading]   = useState(false)
+  const [error, setError]       = useState('')
+  const { login }    = useAuth()
+  const navigate     = useNavigate()
 
-  useEffect(() => {
-    if (!loading && user) {
-      navigate(user.role === 'super_admin' ? '/super/dashboard' : '/facility/dashboard', { replace: true })
-    }
-  }, [user, loading, navigate])
-
-  if (loading) return <div className="spinner" />
+  const DEMO = {
+    facility: { email: 'admin.delacruz@healthqueue.ph', password: 'Admin@123', role: 'facility_admin', redirect: '/facility/dashboard' },
+    super:    { email: 'superadmin@healthqueue.ph',     password: 'Admin@123', role: 'super_admin',    redirect: '/super/dashboard' },
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!email.trim() || !password) { setError('Email and password are required.'); return }
-    setSubmitting(true)
     setError('')
+    setLoading(true)
     try {
-      const u = await login(email.trim(), password)
-      toast.success(`Welcome back, ${u.fullName.split(' ')[0]}!`)
-      navigate(u.role === 'super_admin' ? '/super/dashboard' : '/facility/dashboard', { replace: true })
-    } catch (err) {
-      setError(err?.message || 'Login failed. Please check your credentials.')
+      const result = await login(email, password)
+      if (result.success) {
+        const role = result.user?.role
+        if (role === 'super_admin')    navigate('/super/dashboard')
+        else if (role === 'facility_admin') navigate('/facility/dashboard')
+        else setError('Access denied. This portal is for admins only.')
+      } else {
+        setError(result.message || 'Invalid email or password.')
+      }
+    } catch {
+      setError('Connection error. Please check the server.')
     } finally {
-      setSubmitting(false)
+      setLoading(false)
     }
   }
 
+  const fillDemo = () => {
+    const d = DEMO[tab]
+    setEmail(d.email)
+    setPass(d.password)
+  }
+
   return (
-    <div style={{ minHeight: '100vh', display: 'flex' }}>
-      {/* Left panel */}
-      <div style={{ flex: '0 0 45%', background: 'linear-gradient(135deg, #1565C0, #0D47A1)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 48, color: '#fff' }}>
-        <div style={{ color: '#fff', marginBottom: 20, opacity: .9 }}>{IcoLogo}</div>
-        <h1 style={{ fontSize: 34, fontWeight: 800, marginBottom: 6 }}>HealthQueue+</h1>
-        <p style={{ fontSize: 16, opacity: .7, marginBottom: 48 }}>Admin Management Portal</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 22, width: '100%', maxWidth: 320 }}>
-          {FEATURES.map(([title, desc]) => (
-            <div key={title} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'rgba(255,255,255,.6)', marginTop: 6, flexShrink: 0 }} />
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 14 }}>{title}</div>
-                <div style={{ fontSize: 12, opacity: .6, marginTop: 2 }}>{desc}</div>
-              </div>
-            </div>
-          ))}
+    <div className={styles.page}>
+      <div className={styles.card}>
+        {/* Logo */}
+        <div className={styles.logoWrap}>
+          <div className={styles.logoIcon}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+          </div>
+          <h1 className={styles.appName}>HealthQueue+</h1>
         </div>
-      </div>
 
-      {/* Right panel */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32, background: 'var(--bg)' }}>
-        <div className="card" style={{ width: '100%', maxWidth: 400, padding: 40 }}>
-          <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 4 }}>Sign In</h2>
-          <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 28 }}>Access the HealthQueue+ admin portal.</p>
+        {/* Role tabs */}
+        <div className={styles.tabs}>
+          <button
+            className={`${styles.tab} ${tab === 'facility' ? styles.tabActive : ''}`}
+            onClick={() => { setTab('facility'); setError('') }}
+            type="button"
+          >
+            Facility Admin
+          </button>
+          <button
+            className={`${styles.tab} ${tab === 'super' ? styles.tabActive : ''}`}
+            onClick={() => { setTab('super'); setError('') }}
+            type="button"
+          >
+            Super Admin
+          </button>
+        </div>
 
+        {/* Form */}
+        <form className={styles.form} onSubmit={handleSubmit}>
           {error && (
-            <div style={{ background: 'var(--error-lt)', border: '1px solid rgba(198,40,40,.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 20, color: 'var(--error)', fontSize: 13 }}>
+            <div className={styles.error}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div className="form-group">
-              <label className="form-label">Email Address</label>
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Email Address</label>
+            <div className={styles.inputWrap}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={styles.inputIcon}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
               <input
-                className="input"
                 type="email"
-                placeholder="admin@healthqueue.ph"
+                className={styles.input}
+                placeholder="admin@healthqueue.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoFocus
-                autoComplete="username"
+                onChange={e => setEmail(e.target.value)}
+                required
               />
             </div>
-            <div className="form-group">
-              <label className="form-label">Password</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  className="input"
-                  type={showPw ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={{ paddingRight: 44 }}
-                  autoComplete="current-password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(!showPw)}
-                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                >
-                  {showPw ? IcoEyeOff : IcoEye}
-                </button>
-              </div>
-            </div>
-            <button
-              type="submit"
-              className="btn btn-primary w-full"
-              disabled={submitting}
-              style={{ marginTop: 8, padding: '12px', fontSize: 15 }}
-            >
-              {submitting ? 'Signing in...' : 'Sign In'}
-            </button>
-          </form>
-
-          <p style={{ marginTop: 24, fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-            For staff queue management, use the Tablet App.
-          </p>
-          <div style={{ marginTop: 16, padding: '12px 16px', background: '#F8FAFC', borderRadius: 8, fontSize: 12, color: 'var(--muted)' }}>
-            <strong>Demo credentials:</strong><br />
-            Super Admin: <code>superadmin@healthqueue.ph</code> / <code>Admin@123</code><br />
-            Facility Admin: <code>admin.delacruz@healthqueue.ph</code> / <code>Admin@123</code>
           </div>
-        </div>
+
+          <div className={styles.formGroup}>
+            <label className={styles.label}>Password</label>
+            <div className={styles.inputWrap}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={styles.inputIcon}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input
+                type={showPw ? 'text' : 'password'}
+                className={styles.input}
+                placeholder="Enter your password"
+                value={password}
+                onChange={e => setPass(e.target.value)}
+                required
+              />
+              <button type="button" className={styles.eyeBtn} onClick={() => setShowPw(p => !p)}>
+                <EyeIcon open={showPw} />
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.row}>
+            <label className={styles.checkLabel}>
+              <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />
+              <span>Remember me</span>
+            </label>
+            <button type="button" className={styles.forgot}>Forgot password?</button>
+          </div>
+
+          <button type="submit" className={styles.submitBtn} disabled={loading}>
+            {loading ? 'Signing in…' : 'Sign In'}
+          </button>
+
+          {/* Demo access box */}
+          <div className={styles.demoBox} onClick={fillDemo}>
+            <div className={styles.demoTitle}>Demo Access:</div>
+            <div className={styles.demoDesc}>
+              Click here to auto-fill {tab === 'facility' ? 'Facility Admin' : 'Super Admin'} credentials, then click Sign In.
+            </div>
+          </div>
+        </form>
       </div>
+
+      <div className={styles.footer}>© 2026 HealthQueue+. All rights reserved.</div>
     </div>
   )
 }
