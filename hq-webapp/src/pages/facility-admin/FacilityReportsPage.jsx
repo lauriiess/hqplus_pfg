@@ -1,98 +1,207 @@
-import { useEffect, useState } from 'react'
-import { Bar } from 'react-chartjs-2'
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js'
-import { dashboardApi } from '../../services/api'
-import { useAuth } from '../../context/AuthContext'
-import StatCard from '../../components/ui/StatCard'
-import toast from 'react-hot-toast'
+// Prescriptive Analytics & Recommendations — matches prototype
+import { useState } from 'react'
+import {
+  AreaChart, Area, BarChart, Bar,
+  LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer
+} from 'recharts'
+import styles from './FacilityReportsPage.module.css'
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
+const VOLUME_DATA = [
+  { date: 'Jan 26', patients: 185 },
+  { date: 'Jan 27', patients: 202 },
+  { date: 'Jan 28', patients: 178 },
+  { date: 'Jan 29', patients: 231 },
+  { date: 'Jan 30', patients: 248 },
+  { date: 'Jan 31', patients: 215 },
+  { date: 'Feb 1',  patients: 226 },
+]
 
-const IcoWaiting  = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-const IcoDone     = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
-const IcoNoShow   = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-const IcoTimer    = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-const IcoUsers    = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+const WAIT_DATA = [
+  { dept: 'General',    wait: 18 },
+  { dept: 'Pediatrics', wait: 22 },
+  { dept: 'Cardiology', wait: 15 },
+  { dept: 'Orthopedics',wait: 26 },
+  { dept: 'Dermatology',wait: 20 },
+]
+
+const HOURLY_DATA = [
+  { hour: '8 AM', count: 22 },
+  { hour: '9 AM', count: 48 },
+  { hour: '10 AM', count: 61 },
+  { hour: '11 AM', count: 54 },
+  { hour: '12 PM', count: 38 },
+  { hour: '1 PM', count: 42 },
+  { hour: '2 PM', count: 51 },
+  { hour: '3 PM', count: 45 },
+  { hour: '4 PM', count: 30 },
+  { hour: '5 PM', count: 15 },
+]
+
+const DIST_DATA = [
+  { name: 'General 35%',    value: 35, color: '#2563EB' },
+  { name: 'Pediatrics 22%', value: 22, color: '#16A34A' },
+  { name: 'Cardiology 18%', value: 18, color: '#D97706' },
+  { name: 'Orthopedics 15%',value: 15, color: '#7C3AED' },
+  { name: 'Dermatology 10%',value: 10, color: '#DB2777' },
+]
+
+const INSIGHTS = [
+  { type: 'warning', title: 'Peak Hour Bottleneck', desc: 'Queue volume spikes at 10 AM — consider adding a morning triage staff to reduce average wait time by ~8 minutes.' },
+  { type: 'success', title: 'Completion Rate Excellent', desc: '92.3% completion rate this week. Your team is performing above the regional benchmark of 85%.' },
+  { type: 'info', title: 'Orthopedics Wait Time High', desc: 'Average wait of 26 min detected. Review slot allocation or add a second consultation room on peak days.' },
+  { type: 'warning', title: 'Senior Citizen Queue Rising', desc: 'PWD/Senior priority queue increased 15% — consider a dedicated lane on Tuesdays and Thursdays.' },
+]
+
+const RANGES = ['Last 7 Days', 'Last 30 Days', 'Last 3 Months', 'Last Year']
 
 export default function FacilityReportsPage() {
-  const { user } = useAuth()
-  const [stats,   setStats]   = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    dashboardApi.facility(user?.clinicId)
-      .then((res) => setStats(res.data))
-      .catch(() => toast.error('Failed to load report data'))
-      .finally(() => setLoading(false))
-  }, [user?.clinicId])
-
-  if (loading) return <div className="spinner" />
-
-  const peakHours = stats?.peakHours || []
-  const peakData = {
-    labels: peakHours.map((h) => `${h._id}:00`),
-    datasets: [{
-      label: 'Patients',
-      data: peakHours.map((h) => h.count),
-      backgroundColor: 'rgba(38,166,154,.75)',
-      borderRadius: 6,
-    }],
-  }
-  const peakOpts = {
-    responsive: true,
-    plugins: { legend: { display: false } },
-    scales: { y: { beginAtZero: true, grid: { color: '#F1F5F9' } }, x: { grid: { display: false } } },
-  }
+  const [range, setRange] = useState('Last 7 Days')
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <div className="page-title">Clinic Reports</div>
-          <div className="page-subtitle">Today's performance metrics for your facility</div>
+    <div className={styles.page}>
+      {/* ── Controls ── */}
+      <div className={styles.controls}>
+        <div className={styles.dateRange}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 500 }}>Date Range:</span>
+          <select
+            className="dropdown-select"
+            value={range}
+            onChange={e => setRange(e.target.value)}
+          >
+            {RANGES.map(r => <option key={r}>{r}</option>)}
+          </select>
+        </div>
+        <button className="btn btn-outline btn-sm">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export Report
+        </button>
+      </div>
+
+      {/* ── Stat cards ── */}
+      <div className={styles.statsGrid}>
+        <AnalyticCard label="Avg. Daily Patients" value="218"  sub="+8.2%" subColor="green" icon="patients" />
+        <AnalyticCard label="Avg. Wait Time"       value="20 min" sub="-12%"  subColor="green" icon="clock" />
+        <AnalyticCard label="Completion Rate"      value="92.3%" sub="+2.1%"  subColor="green" icon="trend" />
+        <AnalyticCard label="Peak Hour"            value="10 AM"  sub="55 patients avg" icon="bar" />
+      </div>
+
+      {/* ── Charts row 1 ── */}
+      <div className={styles.row2}>
+        <div className={`card ${styles.chartCard}`}>
+          <div className={styles.chartTitle}>Patient Volume Trend</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <AreaChart data={VOLUME_DATA} margin={{ top: 8, right: 8, left: -18, bottom: 4 }}>
+              <defs>
+                <linearGradient id="volGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor="#7C3AED" stopOpacity={0.35}/>
+                  <stop offset="95%" stopColor="#7C3AED" stopOpacity={0.02}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+              <XAxis dataKey="date" tick={{ fontSize: 11 }}/>
+              <YAxis tick={{ fontSize: 11 }}/>
+              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }}/>
+              <Area type="monotone" dataKey="patients" stroke="#7C3AED" strokeWidth={2.5} fill="url(#volGrad)"/>
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className={`card ${styles.pieCard}`}>
+          <div className={styles.chartTitle}>Department Distribution</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie
+                data={DIST_DATA}
+                cx="50%" cy="50%"
+                innerRadius={52} outerRadius={78}
+                paddingAngle={3}
+                dataKey="value"
+                label={({ name }) => name}
+                labelLine={false}
+              >
+                {DIST_DATA.map((d, i) => <Cell key={i} fill={d.color}/>)}
+              </Pie>
+              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }}/>
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
-      <div className="stat-grid" style={{ marginBottom: 24 }}>
-        <StatCard label="Waiting"         value={stats?.queue?.waiting          ?? 0}    icon={IcoWaiting} color="warning" />
-        <StatCard label="Served Today"    value={stats?.queue?.done             ?? 0}    icon={IcoDone}    color="success" />
-        <StatCard label="No Shows"        value={stats?.queue?.noShow           ?? 0}    icon={IcoNoShow}  color="error" />
-        <StatCard label="Avg Wait"        value={`${stats?.metrics?.avgWait    ?? 0}m`} icon={IcoTimer}   color="primary" />
-        <StatCard label="Avg Turnaround"  value={`${stats?.metrics?.avgTurnaround ?? 0}m`} icon={IcoTimer} color="purple" />
-        <StatCard label="Total Patients"  value={stats?.queue?.total            ?? 0}    icon={IcoUsers}   color="muted" />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        <div className="card">
-          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>Peak Hours Today</div>
-          <div className="text-muted" style={{ marginBottom: 20 }}>Patient volume per hour</div>
-          {peakHours.length === 0
-            ? <div className="empty-state"><p>No queue data yet for today.</p></div>
-            : <Bar data={peakData} options={peakOpts} height={140} />
-          }
+      {/* ── Charts row 2 ── */}
+      <div className={styles.row2}>
+        <div className={`card ${styles.chartCard}`}>
+          <div className={styles.chartTitle}>Average Wait Times by Department</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={WAIT_DATA} margin={{ top: 8, right: 8, left: -18, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+              <XAxis dataKey="dept" tick={{ fontSize: 11 }}/>
+              <YAxis tick={{ fontSize: 11 }} unit=" min"/>
+              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }}/>
+              <Bar dataKey="wait" fill="#2563EB" radius={[4, 4, 0, 0]}/>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
-        <div className="card">
-          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>Today's Summary</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {[
-              ['Waiting',              stats?.queue?.waiting           ?? 0, 'var(--warning)'],
-              ['Now Serving',          stats?.queue?.serving           ?? 0, 'var(--primary)'],
-              ['Served',               stats?.queue?.done              ?? 0, 'var(--success)'],
-              ['No Shows',             stats?.queue?.noShow            ?? 0, 'var(--error)'],
-              ['Pending Appointments', stats?.appointments?.pending    ?? 0, 'var(--warning)'],
-              ['Confirmed Appointments', stats?.appointments?.confirmed ?? 0, 'var(--success)'],
-              ['Avg Wait (min)',        stats?.metrics?.avgWait         ?? 0, 'var(--primary)'],
-              ['Avg Turnaround (min)',  stats?.metrics?.avgTurnaround   ?? 0, 'var(--purple)'],
-            ].map(([label, val, color]) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 13 }}>{label}</span>
-                <span style={{ fontWeight: 800, fontSize: 16, color }}>{val}</span>
+        <div className={`card ${styles.chartCard}`}>
+          <div className={styles.chartTitle}>Patient Traffic by Hour</div>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={HOURLY_DATA} margin={{ top: 8, right: 8, left: -18, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false}/>
+              <XAxis dataKey="hour" tick={{ fontSize: 10 }}/>
+              <YAxis tick={{ fontSize: 11 }}/>
+              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }}/>
+              <Line
+                type="monotone" dataKey="count"
+                stroke="#0D9488" strokeWidth={2.5}
+                dot={{ r: 4, fill: '#0D9488', strokeWidth: 2, stroke: '#fff' }}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* ── Key Insights ── */}
+      <div className={`card ${styles.insightsCard}`}>
+        <div className={styles.chartTitle}>Key Insights</div>
+        <div className={styles.insightsList}>
+          {INSIGHTS.map((ins, i) => (
+            <div key={i} className={`${styles.insight} ${styles['insight_' + ins.type]}`}>
+              <div className={styles.insightIcon}>
+                {ins.type === 'warning' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>}
+                {ins.type === 'success' && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>}
+                {ins.type === 'info'    && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
               </div>
-            ))}
-          </div>
+              <div>
+                <div className={styles.insightTitle}>{ins.title}</div>
+                <div className={styles.insightDesc}>{ins.desc}</div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
+    </div>
+  )
+}
+
+function AnalyticCard({ label, value, sub, subColor, icon }) {
+  const icons = {
+    patients: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    clock:    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+    trend:    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
+    bar:      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+  }
+  return (
+    <div className={`card ${styles.analyticCard}`}>
+      <div className={styles.analyticIcon}>{icons[icon]}</div>
+      <div className={styles.analyticSub} style={{ color: subColor === 'green' ? 'var(--success)' : 'var(--muted)' }}>
+        {subColor === 'green' ? '▲ ' : ''}{sub}
+      </div>
+      <div className={styles.analyticValue}>{value}</div>
+      <div className={styles.analyticLabel}>{label}</div>
     </div>
   )
 }
