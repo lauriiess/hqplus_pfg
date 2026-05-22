@@ -8,9 +8,15 @@ import toast from 'react-hot-toast'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend)
 
+const IcoWaiting  = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+const IcoDone     = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+const IcoNoShow   = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+const IcoTimer    = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+const IcoUsers    = <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+
 export default function FacilityReportsPage() {
   const { user } = useAuth()
-  const [stats, setStats] = useState(null)
+  const [stats,   setStats]   = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -32,7 +38,11 @@ export default function FacilityReportsPage() {
       borderRadius: 6,
     }],
   }
-  const peakOpts = { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#F1F5F9' } }, x: { grid: { display: false } } } }
+  const peakOpts = {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, grid: { color: '#F1F5F9' } }, x: { grid: { display: false } } },
+  }
 
   return (
     <div>
@@ -44,12 +54,12 @@ export default function FacilityReportsPage() {
       </div>
 
       <div className="stat-grid" style={{ marginBottom: 24 }}>
-        <StatCard label="Waiting"       value={stats?.queue?.waiting  ?? 0} icon="⏳" color="warning" />
-        <StatCard label="Served Today"  value={stats?.queue?.done     ?? 0} icon="✅" color="success" />
-        <StatCard label="No Shows"      value={stats?.queue?.noShow   ?? 0} icon="❌" color="error" />
-        <StatCard label="Avg Wait"      value={`${stats?.metrics?.avgWait ?? 0}m`} icon="⏱️" color="primary" />
-        <StatCard label="Avg Turnaround" value={`${stats?.metrics?.avgTurnaround ?? 0}m`} icon="🔄" color="purple" />
-        <StatCard label="Total Patients" value={stats?.queue?.total ?? 0} icon="👥" color="muted" />
+        <StatCard label="Waiting"         value={stats?.queue?.waiting          ?? 0}    icon={IcoWaiting} color="warning" />
+        <StatCard label="Served Today"    value={stats?.queue?.done             ?? 0}    icon={IcoDone}    color="success" />
+        <StatCard label="No Shows"        value={stats?.queue?.noShow           ?? 0}    icon={IcoNoShow}  color="error" />
+        <StatCard label="Avg Wait"        value={`${stats?.metrics?.avgWait    ?? 0}m`} icon={IcoTimer}   color="primary" />
+        <StatCard label="Avg Turnaround"  value={`${stats?.metrics?.avgTurnaround ?? 0}m`} icon={IcoTimer} color="purple" />
+        <StatCard label="Total Patients"  value={stats?.queue?.total            ?? 0}    icon={IcoUsers}   color="muted" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
@@ -66,17 +76,17 @@ export default function FacilityReportsPage() {
           <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16 }}>Today's Summary</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {[
-              ['⏳', 'Waiting',           stats?.queue?.waiting    ?? 0, 'var(--warning)'],
-              ['🩺', 'Now Serving',       stats?.queue?.serving    ?? 0, 'var(--primary)'],
-              ['✅', 'Served',            stats?.queue?.done       ?? 0, 'var(--success)'],
-              ['❌', 'No Shows',          stats?.queue?.noShow     ?? 0, 'var(--error)'],
-              ['📋', 'Pending Appts',     stats?.appointments?.pending   ?? 0, 'var(--warning)'],
-              ['📅', 'Confirmed Appts',   stats?.appointments?.confirmed ?? 0, 'var(--success)'],
-              ['⏱️', 'Avg Wait (min)',    stats?.metrics?.avgWait  ?? 0, 'var(--primary)'],
-              ['🔄', 'Avg Turnaround (min)', stats?.metrics?.avgTurnaround ?? 0, 'var(--purple)'],
-            ].map(([icon, label, val, color]) => (
+              ['Waiting',              stats?.queue?.waiting           ?? 0, 'var(--warning)'],
+              ['Now Serving',          stats?.queue?.serving           ?? 0, 'var(--primary)'],
+              ['Served',               stats?.queue?.done              ?? 0, 'var(--success)'],
+              ['No Shows',             stats?.queue?.noShow            ?? 0, 'var(--error)'],
+              ['Pending Appointments', stats?.appointments?.pending    ?? 0, 'var(--warning)'],
+              ['Confirmed Appointments', stats?.appointments?.confirmed ?? 0, 'var(--success)'],
+              ['Avg Wait (min)',        stats?.metrics?.avgWait         ?? 0, 'var(--primary)'],
+              ['Avg Turnaround (min)',  stats?.metrics?.avgTurnaround   ?? 0, 'var(--purple)'],
+            ].map(([label, val, color]) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 13 }}>{icon} {label}</span>
+                <span style={{ fontSize: 13 }}>{label}</span>
                 <span style={{ fontWeight: 800, fontSize: 16, color }}>{val}</span>
               </div>
             ))}

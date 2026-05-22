@@ -11,17 +11,20 @@ const EMPTY_CLINIC = {
 }
 
 export default function ClinicsPage() {
-  const [clinics, setClinics] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [modal, setModal] = useState(null) // null | 'create' | 'edit' | 'delete'
+  const [clinics,  setClinics]  = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [search,   setSearch]   = useState('')
+  const [modal,    setModal]    = useState(null)
   const [selected, setSelected] = useState(null)
-  const [form, setForm] = useState(EMPTY_CLINIC)
-  const [saving, setSaving] = useState(false)
+  const [form,     setForm]     = useState(EMPTY_CLINIC)
+  const [saving,   setSaving]   = useState(false)
 
   const load = () => {
     setLoading(true)
-    clinicsApi.list().then((res) => setClinics(res.data)).catch(() => toast.error('Failed to load clinics')).finally(() => setLoading(false))
+    clinicsApi.list()
+      .then((res) => setClinics(res.data))
+      .catch(() => toast.error('Failed to load clinics'))
+      .finally(() => setLoading(false))
   }
   useEffect(load, [])
 
@@ -39,16 +42,11 @@ export default function ClinicsPage() {
     if (!form.name || !form.address || !form.city) { toast.error('Name, address, and city are required.'); return }
     setSaving(true)
     try {
-      if (modal === 'create') {
-        await clinicsApi.create(form)
-        toast.success('Clinic created!')
-      } else {
-        await clinicsApi.update(selected._id, form)
-        toast.success('Clinic updated!')
-      }
+      if (modal === 'create') { await clinicsApi.create(form); toast.success('Clinic created.') }
+      else { await clinicsApi.update(selected._id, form); toast.success('Clinic updated.') }
       closeModal(); load()
     } catch (err) {
-      toast.error(typeof err === 'string' ? err : 'Save failed.')
+      toast.error(err?.message || 'Save failed.')
     } finally { setSaving(false) }
   }
 
@@ -59,11 +57,11 @@ export default function ClinicsPage() {
       toast.success('Clinic deleted.')
       closeModal(); load()
     } catch (err) {
-      toast.error(typeof err === 'string' ? err : 'Delete failed.')
+      toast.error(err?.message || 'Delete failed.')
     } finally { setSaving(false) }
   }
 
-  const addService = () => setForm((f) => ({ ...f, services: [...f.services, { name: '', description: '', durationMinutes: 30, isAvailable: true }] }))
+  const addService    = () => setForm((f) => ({ ...f, services: [...f.services, { name: '', description: '', durationMinutes: 30, isAvailable: true }] }))
   const removeService = (i) => setForm((f) => ({ ...f, services: f.services.filter((_, idx) => idx !== i) }))
   const updateService = (i, field, val) => setForm((f) => ({ ...f, services: f.services.map((s, idx) => idx === i ? { ...s, [field]: val } : s) }))
 
@@ -78,7 +76,7 @@ export default function ClinicsPage() {
       </div>
 
       <div className="card" style={{ marginBottom: 20, padding: '12px 16px' }}>
-        <input className="input" placeholder="🔍  Search clinics by name or city…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input className="input" placeholder="Search by clinic name or city..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
       {loading ? <div className="spinner" /> : (
@@ -102,10 +100,16 @@ export default function ClinicsPage() {
                 <tr key={c._id}>
                   <td>
                     <div style={{ fontWeight: 700 }}>{c.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>{c.acceptsWalkIn ? '🚶 Walk-in' : ''} {c.acceptsAppointment ? '📅 Appointment' : ''}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      {[c.acceptsWalkIn && 'Walk-in', c.acceptsAppointment && 'Appointment'].filter(Boolean).join(' · ')}
+                    </div>
                   </td>
                   <td>{c.city}{c.province ? `, ${c.province}` : ''}</td>
-                  <td style={{ fontSize: 13 }}>{c.contactNumber || '—'}<br/><span style={{ color: 'var(--muted)', fontSize: 12 }}>{c.email}</span></td>
+                  <td style={{ fontSize: 13 }}>
+                    {c.contactNumber || '—'}
+                    <br />
+                    <span style={{ color: 'var(--muted)', fontSize: 12 }}>{c.email}</span>
+                  </td>
                   <td style={{ fontSize: 13 }}>{c.operatingHours}</td>
                   <td style={{ fontSize: 13 }}>{c.services?.length ?? 0} service{c.services?.length !== 1 ? 's' : ''}</td>
                   <td>
@@ -134,11 +138,20 @@ export default function ClinicsPage() {
         width={620}
         footer={<>
           <button className="btn btn-ghost" onClick={closeModal}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save Clinic'}</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Clinic'}</button>
         </>}
       >
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          {[['name','Clinic Name *','text'],['address','Address *','text'],['city','City *','text'],['province','Province','text'],['contactNumber','Contact Number','tel'],['email','Email','email'],['operatingHours','Operating Hours','text'],['maxQueueCapacity','Max Queue Capacity','number']].map(([field, label, type]) => (
+          {[
+            ['name',             'Clinic Name *',       'text'],
+            ['address',          'Address *',           'text'],
+            ['city',             'City *',              'text'],
+            ['province',         'Province',            'text'],
+            ['contactNumber',    'Contact Number',      'tel'],
+            ['email',            'Email',               'email'],
+            ['operatingHours',   'Operating Hours',     'text'],
+            ['maxQueueCapacity', 'Max Queue Capacity',  'number'],
+          ].map(([field, label, type]) => (
             <div className="form-group" key={field} style={field === 'address' ? { gridColumn: '1 / -1' } : {}}>
               <label className="form-label">{label}</label>
               <input className="input" type={type} value={form[field] ?? ''} onChange={(e) => setForm((f) => ({ ...f, [field]: type === 'number' ? +e.target.value : e.target.value }))} />
@@ -152,12 +165,14 @@ export default function ClinicsPage() {
               <option value="maintenance">Maintenance</option>
             </select>
           </div>
-          <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+          <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: 20, paddingTop: 22 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-              <input type="checkbox" checked={form.acceptsWalkIn} onChange={(e) => setForm((f) => ({ ...f, acceptsWalkIn: e.target.checked }))} /> Walk-in
+              <input type="checkbox" checked={form.acceptsWalkIn} onChange={(e) => setForm((f) => ({ ...f, acceptsWalkIn: e.target.checked }))} />
+              Walk-in
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
-              <input type="checkbox" checked={form.acceptsAppointment} onChange={(e) => setForm((f) => ({ ...f, acceptsAppointment: e.target.checked }))} /> Appointments
+              <input type="checkbox" checked={form.acceptsAppointment} onChange={(e) => setForm((f) => ({ ...f, acceptsAppointment: e.target.checked }))} />
+              Appointments
             </label>
           </div>
         </div>
@@ -172,7 +187,7 @@ export default function ClinicsPage() {
               <input className="input" placeholder="Service name" value={s.name} onChange={(e) => updateService(i, 'name', e.target.value)} />
               <input className="input" type="number" placeholder="min" value={s.durationMinutes} onChange={(e) => updateService(i, 'durationMinutes', +e.target.value)} />
               <input className="input" placeholder="Description" value={s.description} onChange={(e) => updateService(i, 'description', e.target.value)} />
-              <button className="btn btn-sm" style={{ background: 'var(--error-lt)', color: 'var(--error)' }} onClick={() => removeService(i)}>✕</button>
+              <button className="btn btn-sm" style={{ background: 'var(--error-lt)', color: 'var(--error)' }} onClick={() => removeService(i)}>Remove</button>
             </div>
           ))}
         </div>
@@ -182,7 +197,7 @@ export default function ClinicsPage() {
       <Modal open={modal === 'delete'} onClose={closeModal} title="Delete Clinic"
         footer={<>
           <button className="btn btn-ghost" onClick={closeModal}>Cancel</button>
-          <button className="btn btn-error" onClick={handleDelete} disabled={saving}>{saving ? 'Deleting…' : 'Yes, Delete'}</button>
+          <button className="btn btn-error" onClick={handleDelete} disabled={saving}>{saving ? 'Deleting...' : 'Yes, Delete'}</button>
         </>}
       >
         <p style={{ fontSize: 14 }}>Are you sure you want to delete <strong>{selected?.name}</strong>? This cannot be undone.</p>

@@ -3,6 +3,8 @@ import { appointmentsApi } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
 
+const IcoRefresh = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+
 const STATUS_COLORS = {
   pending:   'badge-warning',
   confirmed: 'badge-primary',
@@ -15,10 +17,10 @@ const STATUSES = ['all', 'pending', 'confirmed', 'completed', 'cancelled', 'no_s
 
 export default function AppointmentsPage() {
   const { user } = useAuth()
-  const [appts, setAppts] = useState([])
+  const [appts,   setAppts]   = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all')
-  const [search, setSearch] = useState('')
+  const [filter,  setFilter]  = useState('all')
+  const [search,  setSearch]  = useState('')
 
   const load = useCallback(() => {
     setLoading(true)
@@ -36,17 +38,18 @@ export default function AppointmentsPage() {
       toast.success(`Status updated to ${status}.`)
       load()
     } catch (err) {
-      toast.error(typeof err === 'string' ? err : 'Update failed.')
+      toast.error(err?.message || 'Update failed.')
     }
   }
 
   const filtered = appts.filter((a) => {
     const matchStatus = filter === 'all' || a.status === filter
-    const matchSearch = !search || a.patientName?.toLowerCase().includes(search.toLowerCase()) || a.serviceName?.toLowerCase().includes(search.toLowerCase())
+    const matchSearch = !search ||
+      a.patientName?.toLowerCase().includes(search.toLowerCase()) ||
+      a.serviceName?.toLowerCase().includes(search.toLowerCase())
     return matchStatus && matchSearch
   })
 
-  const fmtTime = (iso) => iso ? new Date(iso).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }) : '—'
   const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }) : '—'
 
   return (
@@ -56,11 +59,17 @@ export default function AppointmentsPage() {
           <div className="page-title">Appointments</div>
           <div className="page-subtitle">Today's scheduled appointments</div>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={load}>⟳ Refresh</button>
+        <button className="btn btn-ghost btn-sm" onClick={load} style={{ gap: 6 }}>{IcoRefresh} Refresh</button>
       </div>
 
       <div className="card" style={{ marginBottom: 20, padding: '12px 16px', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input className="input" style={{ flex: '1 1 200px' }} placeholder="🔍  Search patient or service…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input
+          className="input"
+          style={{ flex: '1 1 200px' }}
+          placeholder="Search patient or service..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {STATUSES.map((s) => (
             <button
@@ -69,7 +78,7 @@ export default function AppointmentsPage() {
               onClick={() => setFilter(s)}
             >
               {s === 'all' ? 'All' : s.replace('_', ' ')}
-              <span style={{ marginLeft: 4, fontSize: 11, opacity: .8 }}>
+              <span style={{ marginLeft: 4, fontSize: 11, opacity: .75 }}>
                 ({s === 'all' ? appts.length : appts.filter((a) => a.status === s).length})
               </span>
             </button>
@@ -95,21 +104,25 @@ export default function AppointmentsPage() {
                     <div style={{ fontSize: 11, color: 'var(--muted)' }}>{fmtDate(a.appointmentDate)}</div>
                   </td>
                   <td>
-                    <div style={{ fontWeight: 600 }}>{a.patientName || (a.patient?.fullName) || '—'}</div>
+                    <div style={{ fontWeight: 600 }}>{a.patientName || a.patient?.fullName || '—'}</div>
                     <div style={{ fontSize: 12, color: 'var(--muted)' }}>{a.patient?.phone || a.patientPhone || ''}</div>
                   </td>
                   <td style={{ fontSize: 13 }}>{a.serviceName}</td>
                   <td style={{ fontSize: 12, color: 'var(--muted)', maxWidth: 160 }}>{a.reason || '—'}</td>
                   <td>
-                    <span className={`badge ${a.patientType === 'Regular' ? 'badge-muted' : 'badge-warning'}`}>{a.patientType || 'Regular'}</span>
+                    <span className={`badge ${a.patientType === 'Regular' ? 'badge-muted' : 'badge-warning'}`}>
+                      {a.patientType || 'Regular'}
+                    </span>
                   </td>
                   <td>
                     <span className={`badge ${STATUS_COLORS[a.status] || 'badge-muted'}`}>{a.status}</span>
                   </td>
                   <td>
                     {(a.status === 'pending' || a.status === 'confirmed') && (
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        {a.status === 'pending' && <button className="btn btn-sm btn-primary" onClick={() => updateStatus(a._id, 'confirmed')}>Confirm</button>}
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {a.status === 'pending' && (
+                          <button className="btn btn-sm btn-primary" onClick={() => updateStatus(a._id, 'confirmed')}>Confirm</button>
+                        )}
                         <button className="btn btn-sm btn-success" onClick={() => updateStatus(a._id, 'completed')}>Done</button>
                         <button className="btn btn-sm" style={{ background: 'var(--warning-lt)', color: 'var(--warning)' }} onClick={() => updateStatus(a._id, 'no_show')}>No Show</button>
                         <button className="btn btn-sm" style={{ background: 'var(--error-lt)', color: 'var(--error)' }} onClick={() => updateStatus(a._id, 'cancelled')}>Cancel</button>

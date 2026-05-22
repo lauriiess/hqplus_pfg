@@ -6,15 +6,15 @@ import toast from 'react-hot-toast'
 const EMPTY_USER = { fullName: '', email: '', phone: '', password: '', role: 'staff', clinicId: '', isActive: true }
 
 export default function UsersPage() {
-  const [users,   setUsers]   = useState([])
-  const [clinics, setClinics] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [search,  setSearch]  = useState('')
+  const [users,    setUsers]    = useState([])
+  const [clinics,  setClinics]  = useState([])
+  const [loading,  setLoading]  = useState(true)
+  const [search,   setSearch]   = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
-  const [modal,   setModal]   = useState(null)
+  const [modal,    setModal]    = useState(null)
   const [selected, setSelected] = useState(null)
-  const [form,    setForm]    = useState(EMPTY_USER)
-  const [saving,  setSaving]  = useState(false)
+  const [form,     setForm]     = useState(EMPTY_USER)
+  const [saving,   setSaving]   = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -44,11 +44,11 @@ export default function UsersPage() {
       const payload = { ...form }
       if (!payload.clinicId) delete payload.clinicId
       if (!payload.password) delete payload.password
-      if (modal === 'create') { await usersApi.create(payload); toast.success('User created!') }
-      else { await usersApi.update(selected._id, payload); toast.success('User updated!') }
+      if (modal === 'create') { await usersApi.create(payload); toast.success('User created.') }
+      else { await usersApi.update(selected._id, payload); toast.success('User updated.') }
       closeModal(); load()
     } catch (err) {
-      toast.error(typeof err === 'string' ? err : 'Save failed.')
+      toast.error(err?.message || 'Save failed.')
     } finally { setSaving(false) }
   }
 
@@ -59,7 +59,7 @@ export default function UsersPage() {
       toast.success('User deactivated.')
       closeModal(); load()
     } catch (err) {
-      toast.error(typeof err === 'string' ? err : 'Failed to deactivate.')
+      toast.error(err?.message || 'Failed to deactivate.')
     } finally { setSaving(false) }
   }
 
@@ -77,9 +77,9 @@ export default function UsersPage() {
       </div>
 
       <div className="card" style={{ marginBottom: 20, padding: '12px 16px', display: 'flex', gap: 12, alignItems: 'center' }}>
-        <input className="input" style={{ flex: 1 }} placeholder="🔍  Search by name or email…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input className="input" style={{ flex: 1 }} placeholder="Search by name or email..." value={search} onChange={(e) => setSearch(e.target.value)} />
         <select className="input" style={{ width: 180 }} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-          {roles.map((r) => <option key={r} value={r}>{r === 'all' ? 'All Roles' : r.replace('_', ' ')}</option>)}
+          {roles.map((r) => <option key={r} value={r}>{r === 'all' ? 'All Roles' : r.replace(/_/g, ' ')}</option>)}
         </select>
       </div>
 
@@ -100,21 +100,23 @@ export default function UsersPage() {
                   <tr key={u._id}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--primary-lt)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
-                          {u.fullName?.[0] ?? '?'}
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--primary-lt)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
+                          {u.fullName?.[0]?.toUpperCase() ?? '?'}
                         </div>
                         <span style={{ fontWeight: 600 }}>{u.fullName}</span>
                       </div>
                     </td>
                     <td style={{ fontSize: 13 }}>{u.email}</td>
                     <td style={{ fontSize: 13 }}>{u.phone || '—'}</td>
-                    <td><span className={`badge ${roleColors[u.role] || 'badge-muted'}`}>{u.role?.replace('_', ' ')}</span></td>
+                    <td><span className={`badge ${roleColors[u.role] || 'badge-muted'}`}>{u.role?.replace(/_/g, ' ')}</span></td>
                     <td style={{ fontSize: 13 }}>{clinic?.name || '—'}</td>
                     <td><span className={`badge ${u.isActive !== false ? 'badge-success' : 'badge-muted'}`}>{u.isActive !== false ? 'Active' : 'Inactive'}</span></td>
                     <td>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button className="btn btn-ghost btn-sm" onClick={() => openEdit(u)}>Edit</button>
-                        {u.isActive !== false && <button className="btn btn-sm" style={{ background: 'var(--warning-lt)', color: 'var(--warning)' }} onClick={() => openDeact(u)}>Deactivate</button>}
+                        {u.isActive !== false && (
+                          <button className="btn btn-sm" style={{ background: 'var(--warning-lt)', color: 'var(--warning)' }} onClick={() => openDeact(u)}>Deactivate</button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -125,53 +127,51 @@ export default function UsersPage() {
         </div>
       )}
 
-      {/* Create/Edit Modal */}
+      {/* Create / Edit Modal */}
       <Modal
         open={modal === 'create' || modal === 'edit'}
         onClose={closeModal}
         title={modal === 'create' ? 'Add New User' : `Edit — ${selected?.fullName}`}
         footer={<>
           <button className="btn btn-ghost" onClick={closeModal}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save User'}</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save User'}</button>
         </>}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div className="form-group">
+            <label className="form-label">Full Name *</label>
+            <input className="input" value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Email *</label>
+            <input className="input" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Phone</label>
+            <input className="input" type="tel" value={form.phone || ''} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">{modal === 'create' ? 'Password *' : 'New Password (leave blank to keep)'}</label>
+            <input className="input" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Role</label>
+            <select className="input" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}>
+              <option value="super_admin">Super Admin</option>
+              <option value="facility_admin">Facility Admin</option>
+              <option value="staff">Staff</option>
+              <option value="patient">Patient</option>
+            </select>
+          </div>
+          {(form.role === 'facility_admin' || form.role === 'staff') && (
             <div className="form-group">
-              <label className="form-label">Full Name *</label>
-              <input className="input" value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Email *</label>
-              <input className="input" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Phone</label>
-              <input className="input" type="tel" value={form.phone || ''} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">{modal === 'create' ? 'Password *' : 'New Password (leave blank to keep)'}</label>
-              <input className="input" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Role</label>
-              <select className="input" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}>
-                <option value="super_admin">Super Admin</option>
-                <option value="facility_admin">Facility Admin</option>
-                <option value="staff">Staff</option>
-                <option value="patient">Patient</option>
+              <label className="form-label">Assigned Clinic</label>
+              <select className="input" value={form.clinicId || ''} onChange={(e) => setForm((f) => ({ ...f, clinicId: e.target.value }))}>
+                <option value="">— Select clinic —</option>
+                {clinics.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
             </div>
-            {(form.role === 'facility_admin' || form.role === 'staff') && (
-              <div className="form-group">
-                <label className="form-label">Assigned Clinic</label>
-                <select className="input" value={form.clinicId || ''} onChange={(e) => setForm((f) => ({ ...f, clinicId: e.target.value }))}>
-                  <option value="">— Select clinic —</option>
-                  {clinics.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-                </select>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </Modal>
 
@@ -179,7 +179,7 @@ export default function UsersPage() {
       <Modal open={modal === 'deactivate'} onClose={closeModal} title="Deactivate User"
         footer={<>
           <button className="btn btn-ghost" onClick={closeModal}>Cancel</button>
-          <button className="btn btn-warning" onClick={handleDeactivate} disabled={saving}>{saving ? 'Deactivating…' : 'Yes, Deactivate'}</button>
+          <button className="btn btn-warning" onClick={handleDeactivate} disabled={saving}>{saving ? 'Deactivating...' : 'Yes, Deactivate'}</button>
         </>}
       >
         <p style={{ fontSize: 14 }}>Deactivate <strong>{selected?.fullName}</strong>? They will lose access but their data will be retained.</p>

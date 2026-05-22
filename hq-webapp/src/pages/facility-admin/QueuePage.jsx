@@ -4,19 +4,21 @@ import { useAuth } from '../../context/AuthContext'
 import Modal from '../../components/ui/Modal'
 import toast from 'react-hot-toast'
 
+const IcoRefresh = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+
 const COLS = [
-  { status: 'waiting', label: 'Waiting',     color: 'var(--warning)',  bg: 'var(--warning-lt)' },
-  { status: 'serving', label: 'Now Serving', color: 'var(--primary)',  bg: 'var(--primary-lt)' },
-  { status: 'done',    label: 'Completed',   color: 'var(--success)',  bg: 'var(--success-lt)' },
+  { status: 'waiting', label: 'Waiting',     color: 'var(--warning)', bg: 'var(--warning-lt)' },
+  { status: 'serving', label: 'Now Serving', color: 'var(--primary)', bg: 'var(--primary-lt)' },
+  { status: 'done',    label: 'Completed',   color: 'var(--success)', bg: 'var(--success-lt)' },
 ]
 
 export default function QueuePage() {
   const { user } = useAuth()
-  const [entries, setEntries] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [entries,     setEntries]     = useState([])
+  const [loading,     setLoading]     = useState(true)
   const [walkinModal, setWalkinModal] = useState(false)
-  const [walkinForm, setWalkinForm] = useState({ patientName: '', patientPhone: '', serviceName: '', patientType: 'Regular', notes: '' })
-  const [saving, setSaving] = useState(false)
+  const [walkinForm,  setWalkinForm]  = useState({ patientName: '', patientPhone: '', serviceName: '', patientType: 'Regular', notes: '' })
+  const [saving,      setSaving]      = useState(false)
 
   const load = useCallback(() => {
     queueApi.list({ clinicId: user?.clinicId })
@@ -27,15 +29,15 @@ export default function QueuePage() {
 
   useEffect(() => { load() }, [load])
 
-  // Auto refresh every 20s
+  // Auto-refresh every 20 seconds
   useEffect(() => {
     const t = setInterval(load, 20000)
     return () => clearInterval(t)
   }, [load])
 
   const action = async (fn, label) => {
-    try { await fn(); load(); toast.success(`${label} done.`) }
-    catch (err) { toast.error(typeof err === 'string' ? err : `${label} failed.`) }
+    try { await fn(); load(); toast.success(`${label} updated.`) }
+    catch (err) { toast.error(err?.message || `${label} failed.`) }
   }
 
   const handleAddWalkin = async () => {
@@ -43,17 +45,17 @@ export default function QueuePage() {
     setSaving(true)
     try {
       const res = await queueApi.addWalkin({ ...walkinForm, clinicId: user?.clinicId })
-      toast.success(`Added! Queue #${res.data?.queueNumber}`)
+      toast.success(`Added — Queue #${res.data?.queueNumber}`)
       setWalkinModal(false)
       setWalkinForm({ patientName: '', patientPhone: '', serviceName: '', patientType: 'Regular', notes: '' })
       load()
     } catch (err) {
-      toast.error(typeof err === 'string' ? err : 'Failed to add walk-in.')
+      toast.error(err?.message || 'Failed to add walk-in.')
     } finally { setSaving(false) }
   }
 
-  const byStatus = (status) => entries.filter((e) => e.status === status)
-    .sort((a, b) => new Date(a.joinedAt) - new Date(b.joinedAt))
+  const byStatus = (status) =>
+    entries.filter((e) => e.status === status).sort((a, b) => new Date(a.joinedAt) - new Date(b.joinedAt))
 
   return (
     <div>
@@ -63,7 +65,7 @@ export default function QueuePage() {
           <div className="page-subtitle">Today's walk-in queue — live view</div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-ghost btn-sm" onClick={load}>⟳ Refresh</button>
+          <button className="btn btn-ghost btn-sm" onClick={load} style={{ gap: 6 }}>{IcoRefresh} Refresh</button>
           <button className="btn btn-primary" onClick={() => setWalkinModal(true)}>+ Add Walk-in</button>
         </div>
       </div>
@@ -91,10 +93,13 @@ export default function QueuePage() {
       )}
 
       {/* Add Walk-in Modal */}
-      <Modal open={walkinModal} onClose={() => setWalkinModal(false)} title="Add Walk-in Patient"
+      <Modal
+        open={walkinModal}
+        onClose={() => setWalkinModal(false)}
+        title="Add Walk-in Patient"
         footer={<>
           <button className="btn btn-ghost" onClick={() => setWalkinModal(false)}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleAddWalkin} disabled={saving}>{saving ? 'Adding…' : 'Add to Queue'}</button>
+          <button className="btn btn-primary" onClick={handleAddWalkin} disabled={saving}>{saving ? 'Adding...' : 'Add to Queue'}</button>
         </>}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -132,7 +137,9 @@ function QueueCard({ entry: e, col, onAction }) {
   return (
     <div style={{ background: '#fff', borderRadius: 12, padding: 14, boxShadow: 'var(--shadow)', borderLeft: `4px solid ${col.color}` }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-        <div style={{ background: col.bg, color: col.color, fontWeight: 800, fontSize: 14, padding: '4px 10px', borderRadius: 6 }}>{e.queueNumber}</div>
+        <div style={{ background: col.bg, color: col.color, fontWeight: 800, fontSize: 14, padding: '4px 10px', borderRadius: 6 }}>
+          #{e.queueNumber}
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.patientName || '—'}</div>
           <div style={{ fontSize: 11, color: 'var(--muted)' }}>{e.serviceName}</div>
@@ -141,19 +148,21 @@ function QueueCard({ entry: e, col, onAction }) {
           <span className="badge badge-warning" style={{ fontSize: 9 }}>{e.patientType}</span>
         )}
       </div>
+
       <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>
-        Joined: {fmtTime(e.joinedAt)} {e.patientPhone ? `· ${e.patientPhone}` : ''}
+        Joined: {fmtTime(e.joinedAt)}{e.patientPhone ? ` · ${e.patientPhone}` : ''}
       </div>
+
       {e.status === 'waiting' && (
         <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => onAction(() => queueApi.call(e._id), 'Call')}>📣 Call</button>
-          <button className="btn btn-sm" style={{ flex: 1, background: 'var(--warning-lt)', color: 'var(--warning)' }} onClick={() => onAction(() => queueApi.skip(e._id), 'Skip')}>⏭ Skip</button>
+          <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => onAction(() => queueApi.call(e._id), 'Call')}>Call</button>
+          <button className="btn btn-sm" style={{ flex: 1, background: 'var(--warning-lt)', color: 'var(--warning)' }} onClick={() => onAction(() => queueApi.skip(e._id), 'Skip')}>Skip</button>
         </div>
       )}
       {e.status === 'serving' && (
         <div style={{ display: 'flex', gap: 6 }}>
-          <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => onAction(() => queueApi.complete(e._id), 'Complete')}>✅ Done</button>
-          <button className="btn btn-sm" style={{ flex: 1, background: 'var(--error-lt)', color: 'var(--error)' }} onClick={() => onAction(() => queueApi.noShow(e._id), 'No Show')}>❌ No Show</button>
+          <button className="btn btn-success btn-sm" style={{ flex: 1 }} onClick={() => onAction(() => queueApi.complete(e._id), 'Complete')}>Done</button>
+          <button className="btn btn-sm" style={{ flex: 1, background: 'var(--error-lt)', color: 'var(--error)' }} onClick={() => onAction(() => queueApi.noShow(e._id), 'No Show')}>No Show</button>
         </div>
       )}
       {e.status === 'done' && (

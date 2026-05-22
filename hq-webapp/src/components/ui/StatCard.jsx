@@ -11,7 +11,11 @@ export default function StatCard({ label, value, icon, color = 'primary', sub })
 
   return (
     <div className="card flex items-center gap-4" style={{ padding: '18px 20px' }}>
-      <div style={{ width: 48, height: 48, borderRadius: 12, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
+      <div style={{
+        width: 48, height: 48, borderRadius: 12,
+        background: bg, display: 'flex', alignItems: 'center',
+        justifyContent: 'center', flexShrink: 0, color: fg,
+      }}>
         {icon}
       </div>
       <div style={{ minWidth: 0 }}>
