@@ -1,0 +1,17 @@
+.page { display: flex; flex-direction: column; gap: 16px; position: relative; }
+.toast { position: fixed; top: 20px; right: 24px; z-index: 9999; background: #1F2937; color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,.2); }
+.header { display: flex; align-items: flex-start; justify-content: space-between; }
+.title  { font-size: 18px; font-weight: 700; color: var(--text); }
+.sub    { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; align-items: start; }
+.dayCard  { padding: 14px; }
+.dayTitle { font-size: 12px; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border-lt); }
+.empty { font-size: 11px; color: var(--muted-lt); text-align: center; padding: 16px 0; }
+.slotItem { padding: 8px 0; border-bottom: 1px solid var(--border-lt); }
+.slotItem:last-of-type { border-bottom: none; }
+.slotTime    { font-size: 12px; font-weight: 700; color: var(--text); }
+.slotService { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.slotMeta    { font-size: 10px; color: var(--muted-lt); margin-top: 1px; }
+.slotActions { display: flex; gap: 4px; margin-top: 6px; }
+@media (max-width: 1200px) { .grid { grid-template-columns: repeat(4,1fr); } }
+@media (max-width: 768px)  { .grid { grid-template-columns: repeat(2,1fr); } }
