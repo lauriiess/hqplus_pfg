@@ -1,5 +1,5 @@
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
 const {
   bookAppointment,
   getAppointments,
@@ -8,30 +8,37 @@ const {
   cancelAppointment,
   getAvailableSlots,
   getTodayAppointments,
+  getTimeSlots,
+  createTimeSlot,
+  updateTimeSlot,
+  deleteTimeSlot,
 } = require('../controllers/appointmentController');
 const { protect, authorizeRoles, patientOnly } = require('../middleware/auth');
 
 router.use(protect);
 
-// GET /api/appointments/available-slots — check available slots (patient or public)
+// ── Time Slots (admin/facility_admin) ─────────────────────────────────────────
+// MUST be defined BEFORE /:id routes to avoid route conflicts
+router.get('/timeslots',      authorizeRoles('super_admin', 'facility_admin'), getTimeSlots);
+router.post('/timeslots',     authorizeRoles('super_admin', 'facility_admin'), createTimeSlot);
+router.put('/timeslots/:id',  authorizeRoles('super_admin', 'facility_admin'), updateTimeSlot);
+router.delete('/timeslots/:id', authorizeRoles('super_admin', 'facility_admin'), deleteTimeSlot);
+
+// ── Available Slots (patients & admins) ───────────────────────────────────────
 router.get('/available-slots', getAvailableSlots);
 
-// GET /api/appointments/today — today's appointments (staff/admin)
-router.get('/today', authorizeRoles('staff','facility_admin','super_admin'), getTodayAppointments);
+// ── Today (staff/admin) ───────────────────────────────────────────────────────
+router.get('/today', authorizeRoles('staff', 'facility_admin', 'super_admin'), getTodayAppointments);
 
-// GET /api/appointments — list appointments
-router.get('/', getAppointments);
+// ── List / Book ───────────────────────────────────────────────────────────────
+router.get('/',   getAppointments);
+router.post('/',  patientOnly, bookAppointment);
 
-// POST /api/appointments — book appointment (patient)
-router.post('/', patientOnly, bookAppointment);
-
-// GET /api/appointments/:id
+// ── Single ────────────────────────────────────────────────────────────────────
 router.get('/:id', getAppointment);
 
-// PUT /api/appointments/:id/status — update status (staff/admin)
-router.put('/:id/status', authorizeRoles('staff','facility_admin','super_admin'), updateStatus);
-
-// PUT /api/appointments/:id/cancel — patient cancels own appointment
+// ── Status updates ────────────────────────────────────────────────────────────
+router.put('/:id/status', authorizeRoles('staff', 'facility_admin', 'super_admin'), updateStatus);
 router.put('/:id/cancel', patientOnly, cancelAppointment);
 
 module.exports = router;

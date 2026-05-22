@@ -336,4 +336,92 @@ module.exports = {
   cancelAppointment,
   getAvailableSlots,
   getTodayAppointments,
+  getTimeSlots,
+  createTimeSlot,
+  updateTimeSlot,
+  deleteTimeSlot,
+};
+
+// ─── TimeSlot CRUD (admin) ────────────────────────────────────────────────────
+
+// GET /api/appointments/timeslots?clinicId=&serviceId=
+const getTimeSlots = async (req, res) => {
+  try {
+    const { clinicId, serviceId } = req.query;
+    const cId = clinicId || req.user.clinicId;
+    if (!cId) return res.status(400).json({ message: 'clinicId required.' });
+    const filter = { clinic: cId };
+    if (serviceId) filter.serviceId = serviceId;
+    const slots = await TimeSlot.find(filter).sort({ dayOfWeek: 1, startTime: 1 });
+    return res.json(slots);
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to get time slots.' });
+  }
+};
+
+// POST /api/appointments/timeslots
+const createTimeSlot = async (req, res) => {
+  try {
+    const { dayOfWeek, startTime, endTime, maxPatients, serviceId, serviceName, specificDate } = req.body;
+    const clinicId = req.body.clinicId || req.user.clinicId;
+    if (!clinicId || !startTime || !endTime || !serviceName) {
+      return res.status(400).json({ message: 'clinicId, startTime, endTime, and serviceName are required.' });
+    }
+
+    // Auto-generate a readable label from startTime
+    const toLabel = (t) => {
+      const [h, m] = t.split(':').map(Number);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const hr   = h % 12 || 12;
+      return `${hr}:${m.toString().padStart(2, '0')} ${ampm}`;
+    };
+
+    const slot = await TimeSlot.create({
+      clinic: clinicId,
+      serviceId: serviceId || null,
+      serviceName,
+      dayOfWeek: dayOfWeek ?? null,
+      specificDate: specificDate || null,
+      startTime,
+      endTime,
+      label: toLabel(startTime),
+      maxPatients: maxPatients || 1,
+    });
+    return res.status(201).json(slot);
+  } catch (err) {
+    console.error('Create timeslot error:', err.message);
+    return res.status(500).json({ message: 'Failed to create time slot.' });
+  }
+};
+
+// PUT /api/appointments/timeslots/:id
+const updateTimeSlot = async (req, res) => {
+  try {
+    const allowed = ['startTime', 'endTime', 'maxPatients', 'serviceId', 'serviceName', 'dayOfWeek', 'specificDate', 'isActive', 'label'];
+    const update = {};
+    allowed.forEach((f) => { if (req.body[f] !== undefined) update[f] = req.body[f]; });
+
+    // Re-generate label if startTime changes
+    if (update.startTime && !update.label) {
+      const [h, m] = update.startTime.split(':').map(Number);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      update.label = `${h % 12 || 12}:${m.toString().padStart(2, '0')} ${ampm}`;
+    }
+
+    const slot = await TimeSlot.findByIdAndUpdate(req.params.id, update, { new: true });
+    if (!slot) return res.status(404).json({ message: 'Time slot not found.' });
+    return res.json(slot);
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to update time slot.' });
+  }
+};
+
+// DELETE /api/appointments/timeslots/:id
+const deleteTimeSlot = async (req, res) => {
+  try {
+    await TimeSlot.findByIdAndDelete(req.params.id);
+    return res.json({ message: 'Time slot removed.' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to delete time slot.' });
+  }
 };
