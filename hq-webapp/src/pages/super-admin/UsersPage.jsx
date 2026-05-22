@@ -1,189 +1,168 @@
-import { useEffect, useState } from 'react'
-import { usersApi, clinicsApi } from '../../services/api'
-import Modal from '../../components/ui/Modal'
-import toast from 'react-hot-toast'
+import { useState, useEffect } from 'react'
+import api from '../../services/api'
+import styles from './UsersPage.module.css'
 
-const EMPTY_USER = { fullName: '', email: '', phone: '', password: '', role: 'staff', clinicId: '', isActive: true }
+const PERMISSIONS = {
+  'Patient Management':  ['Patient Check-in', 'View Patient Records', 'Edit Patient Records'],
+  'Queue Management':    ['View Queue', 'Manage Queue'],
+  'Staff Management':    ['View Staff', 'Manage Staff'],
+  'Analytics':           ['View Reports', 'Export Reports'],
+  'System Settings':     ['View Settings', 'Manage Settings'],
+}
+
+const ROLES   = ['Select role', 'super_admin', 'facility_admin', 'doctor', 'nurse', 'receptionist', 'data_analyst']
+const DEPTS   = ['Select department', 'General Consultation', 'Pre-natal Care', 'Child Immunization', 'Dental Services', 'TB-DOTS', 'Administration']
 
 export default function UsersPage() {
-  const [users,    setUsers]    = useState([])
-  const [clinics,  setClinics]  = useState([])
-  const [loading,  setLoading]  = useState(true)
-  const [search,   setSearch]   = useState('')
-  const [roleFilter, setRoleFilter] = useState('all')
-  const [modal,    setModal]    = useState(null)
-  const [selected, setSelected] = useState(null)
-  const [form,     setForm]     = useState(EMPTY_USER)
-  const [saving,   setSaving]   = useState(false)
-
-  const load = () => {
-    setLoading(true)
-    Promise.all([usersApi.list(), clinicsApi.list()])
-      .then(([ur, cr]) => { setUsers(ur.data); setClinics(cr.data) })
-      .catch(() => toast.error('Failed to load users'))
-      .finally(() => setLoading(false))
-  }
-  useEffect(load, [])
-
-  const filtered = users.filter((u) => {
-    const matchSearch = u.fullName?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase())
-    const matchRole   = roleFilter === 'all' || u.role === roleFilter
-    return matchSearch && matchRole
+  const [clinics, setClinics] = useState([])
+  const [form, setForm]       = useState({
+    firstName: '', lastName: '', email: '', phone: '',
+    username: '', role: '', clinicId: '', department: '',
+    permissions: [],
   })
+  const [saving,   setSaving]   = useState(false)
+  const [success,  setSuccess]  = useState(false)
+  const [error,    setError]    = useState('')
 
-  const openCreate = () => { setForm(EMPTY_USER); setModal('create') }
-  const openEdit   = (u) => { setSelected(u); setForm({ ...u, password: '' }); setModal('edit') }
-  const openDeact  = (u) => { setSelected(u); setModal('deactivate') }
-  const closeModal = () => { setModal(null); setSelected(null) }
+  useEffect(() => {
+    api.get('/api/clinics').then(r => setClinics(r.data || [])).catch(() => {})
+  }, [])
 
-  const handleSave = async () => {
-    if (!form.fullName || !form.email) { toast.error('Full name and email are required.'); return }
-    if (modal === 'create' && !form.password) { toast.error('Password is required for new users.'); return }
-    setSaving(true)
-    try {
-      const payload = { ...form }
-      if (!payload.clinicId) delete payload.clinicId
-      if (!payload.password) delete payload.password
-      if (modal === 'create') { await usersApi.create(payload); toast.success('User created.') }
-      else { await usersApi.update(selected._id, payload); toast.success('User updated.') }
-      closeModal(); load()
-    } catch (err) {
-      toast.error(err?.message || 'Save failed.')
-    } finally { setSaving(false) }
+  const togglePerm = (perm) => {
+    setForm(f => ({
+      ...f,
+      permissions: f.permissions.includes(perm)
+        ? f.permissions.filter(p => p !== perm)
+        : [...f.permissions, perm],
+    }))
   }
 
-  const handleDeactivate = async () => {
-    setSaving(true)
+  const handleSubmit = async () => {
+    if (!form.firstName || !form.email || !form.role || form.role === 'Select role') {
+      setError('Please fill in all required fields.')
+      return
+    }
+    setSaving(true); setError(''); setSuccess(false)
     try {
-      await usersApi.deactivate(selected._id)
-      toast.success('User deactivated.')
-      closeModal(); load()
-    } catch (err) {
-      toast.error(err?.message || 'Failed to deactivate.')
+      await api.post('/api/users/create', {
+        fullName: `${form.firstName} ${form.lastName}`,
+        email:    form.email,
+        phone:    form.phone,
+        username: form.username,
+        role:     form.role,
+        clinicId: form.clinicId,
+        department: form.department,
+        permissions: form.permissions,
+        password: 'HealthQueue@2025',
+      })
+      setSuccess(true)
+      setForm({ firstName: '', lastName: '', email: '', phone: '', username: '', role: '', clinicId: '', department: '', permissions: [] })
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to create user.')
     } finally { setSaving(false) }
   }
-
-  const roleColors = { super_admin: 'badge-error', facility_admin: 'badge-purple', staff: 'badge-primary', patient: 'badge-success' }
-  const roles = ['all', 'super_admin', 'facility_admin', 'staff', 'patient']
 
   return (
-    <div>
-      <div className="page-header">
+    <div className={styles.page}>
+      {/* Header banner */}
+      <div className={`card ${styles.banner}`}>
+        <div className={styles.bannerIcon}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        </div>
         <div>
-          <div className="page-title">Users</div>
-          <div className="page-subtitle">Manage all system users and their roles</div>
+          <div className={styles.bannerTitle}>Create New User</div>
+          <div className={styles.bannerSub}>Add a new user to the HealthQueue+ system</div>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>+ Add User</button>
       </div>
 
-      <div className="card" style={{ marginBottom: 20, padding: '12px 16px', display: 'flex', gap: 12, alignItems: 'center' }}>
-        <input className="input" style={{ flex: 1 }} placeholder="Search by name or email..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        <select className="input" style={{ width: 180 }} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-          {roles.map((r) => <option key={r} value={r}>{r === 'all' ? 'All Roles' : r.replace(/_/g, ' ')}</option>)}
-        </select>
+      {success && <div className="alert alert-success">User created successfully! Default password is <strong>HealthQueue@2025</strong> — ask them to change it on first login.</div>}
+      {error   && <div className="alert alert-error">{error}</div>}
+
+      {/* Personal Information */}
+      <div className={`card ${styles.section}`}>
+        <div className={styles.sectionTitle}>Personal Information</div>
+        <div className={styles.formGrid2}>
+          <div className="form-group">
+            <label className="form-label">First Name <span className={styles.req}>*</span></label>
+            <input className="form-input" placeholder="Enter first name" value={form.firstName} onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Last Name <span className={styles.req}>*</span></label>
+            <input className="form-input" placeholder="Enter last name" value={form.lastName} onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Email Address <span className={styles.req}>*</span></label>
+            <input className="form-input" type="email" placeholder="user@example.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Phone Number</label>
+            <input className="form-input" placeholder="+1 234 567 8900" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+          </div>
+        </div>
       </div>
 
-      {loading ? <div className="spinner" /> : (
-        <div className="table-wrap card" style={{ padding: 0 }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Clinic</th><th>Status</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={7} className="empty-state">No users found.</td></tr>
-              ) : filtered.map((u) => {
-                const clinic = clinics.find((c) => c._id === u.clinicId)
-                return (
-                  <tr key={u._id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--primary-lt)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
-                          {u.fullName?.[0]?.toUpperCase() ?? '?'}
-                        </div>
-                        <span style={{ fontWeight: 600 }}>{u.fullName}</span>
-                      </div>
-                    </td>
-                    <td style={{ fontSize: 13 }}>{u.email}</td>
-                    <td style={{ fontSize: 13 }}>{u.phone || '—'}</td>
-                    <td><span className={`badge ${roleColors[u.role] || 'badge-muted'}`}>{u.role?.replace(/_/g, ' ')}</span></td>
-                    <td style={{ fontSize: 13 }}>{clinic?.name || '—'}</td>
-                    <td><span className={`badge ${u.isActive !== false ? 'badge-success' : 'badge-muted'}`}>{u.isActive !== false ? 'Active' : 'Inactive'}</span></td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openEdit(u)}>Edit</button>
-                        {u.isActive !== false && (
-                          <button className="btn btn-sm" style={{ background: 'var(--warning-lt)', color: 'var(--warning)' }} onClick={() => openDeact(u)}>Deactivate</button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Create / Edit Modal */}
-      <Modal
-        open={modal === 'create' || modal === 'edit'}
-        onClose={closeModal}
-        title={modal === 'create' ? 'Add New User' : `Edit — ${selected?.fullName}`}
-        footer={<>
-          <button className="btn btn-ghost" onClick={closeModal}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save User'}</button>
-        </>}
-      >
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      {/* Account Information */}
+      <div className={`card ${styles.section}`}>
+        <div className={styles.sectionTitle}>Account Information</div>
+        <div className={styles.formGrid2}>
           <div className="form-group">
-            <label className="form-label">Full Name *</label>
-            <input className="input" value={form.fullName} onChange={(e) => setForm((f) => ({ ...f, fullName: e.target.value }))} />
+            <label className="form-label">Username <span className={styles.req}>*</span></label>
+            <input className="form-input" placeholder="username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} />
           </div>
           <div className="form-group">
-            <label className="form-label">Email *</label>
-            <input className="input" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Phone</label>
-            <input className="input" type="tel" value={form.phone || ''} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">{modal === 'create' ? 'Password *' : 'New Password (leave blank to keep)'}</label>
-            <input className="input" type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Role</label>
-            <select className="input" value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))}>
-              <option value="super_admin">Super Admin</option>
-              <option value="facility_admin">Facility Admin</option>
-              <option value="staff">Staff</option>
-              <option value="patient">Patient</option>
+            <label className="form-label">Role <span className={styles.req}>*</span></label>
+            <select className="form-select" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+              {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
             </select>
           </div>
-          {(form.role === 'facility_admin' || form.role === 'staff') && (
-            <div className="form-group">
-              <label className="form-label">Assigned Clinic</label>
-              <select className="input" value={form.clinicId || ''} onChange={(e) => setForm((f) => ({ ...f, clinicId: e.target.value }))}>
-                <option value="">— Select clinic —</option>
-                {clinics.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-              </select>
-            </div>
-          )}
+          <div className="form-group">
+            <label className="form-label">Facility <span className={styles.req}>*</span></label>
+            <select className="form-select" value={form.clinicId} onChange={e => setForm(f => ({ ...f, clinicId: e.target.value }))}>
+              <option value="">Select facility</option>
+              {clinics.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Department</label>
+            <select className="form-select" value={form.department} onChange={e => setForm(f => ({ ...f, department: e.target.value }))}>
+              {DEPTS.map(d => <option key={d}>{d}</option>)}
+            </select>
+          </div>
         </div>
-      </Modal>
+      </div>
 
-      {/* Deactivate Confirm */}
-      <Modal open={modal === 'deactivate'} onClose={closeModal} title="Deactivate User"
-        footer={<>
-          <button className="btn btn-ghost" onClick={closeModal}>Cancel</button>
-          <button className="btn btn-warning" onClick={handleDeactivate} disabled={saving}>{saving ? 'Deactivating...' : 'Yes, Deactivate'}</button>
-        </>}
-      >
-        <p style={{ fontSize: 14 }}>Deactivate <strong>{selected?.fullName}</strong>? They will lose access but their data will be retained.</p>
-      </Modal>
+      {/* Permissions */}
+      <div className={`card ${styles.section}`}>
+        <div className={styles.sectionTitle}>Permissions</div>
+        {Object.entries(PERMISSIONS).map(([group, perms]) => (
+          <div key={group} className={styles.permGroup}>
+            <div className={styles.permGroupTitle}>{group}</div>
+            <div className={styles.permGrid}>
+              {perms.map(p => (
+                <label key={p} className={styles.permItem}>
+                  <input
+                    type="checkbox"
+                    checked={form.permissions.includes(p)}
+                    onChange={() => togglePerm(p)}
+                    className={styles.permCheck}
+                  />
+                  <span className={styles.permLabel}>{p}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Action buttons */}
+      <div className={styles.actions}>
+        <button className="btn btn-outline" onClick={() => setForm({ firstName: '', lastName: '', email: '', phone: '', username: '', role: '', clinicId: '', department: '', permissions: [] })}>
+          Clear Form
+        </button>
+        <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
+          {saving ? 'Creating…' : 'Create User'}
+        </button>
+      </div>
     </div>
   )
 }
