@@ -1,0 +1,102 @@
+.page { display: flex; flex-direction: column; gap: 20px; }
+
+.profileHeader {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 24px;
+}
+.profileTitle { font-size: 18px; font-weight: 700; color: var(--text); }
+.profileSub   { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* 2-col layout */
+.mainGrid {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 20px;
+  align-items: start;
+}
+
+.infoCard { padding: 24px; }
+.sideCard  { padding: 20px; }
+.sidebar   { display: flex; flex-direction: column; gap: 16px; }
+
+.sectionTitle {
+  font-size: 14px; font-weight: 700;
+  color: var(--text); margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-lt);
+}
+
+/* Info grid */
+.infoGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 24px;
+}
+.infoField  { display: flex; flex-direction: column; gap: 3px; }
+.infoFull   { grid-column: 1 / -1; }
+.infoLabel  { font-size: 11px; font-weight: 600; color: var(--primary); text-transform: uppercase; letter-spacing: .3px; }
+.infoValue  { font-size: 13px; color: var(--text-2); font-weight: 500; }
+
+/* Staff */
+.staffList { display: flex; flex-direction: column; gap: 0; }
+.staffRow {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0; border-bottom: 1px solid var(--border-lt);
+  font-size: 13px;
+}
+.staffRow:last-child { border-bottom: none; }
+.staffRole  { color: var(--muted); }
+.staffCount { font-weight: 700; color: var(--text); }
+.staffTotal { font-weight: 700; color: var(--text); padding-top: 10px; margin-top: 4px; }
+
+/* Capacity */
+.capList { display: flex; flex-direction: column; gap: 12px; }
+.capItem {
+  display: flex; align-items: center; gap: 12px;
+}
+.capIcon {
+  width: 36px; height: 36px;
+  background: var(--primary-lt);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--primary); flex-shrink: 0;
+}
+.capLabel { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.capValue { font-size: 11px; color: var(--muted); }
+
+/* Services */
+.servicesCard { padding: 24px; }
+.servicesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+.serviceGroup {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 700;
+  color: var(--text); margin-bottom: 10px;
+}
+.groupDot {
+  width: 8px; height: 8px;
+  background: var(--primary);
+  border-radius: 50%; flex-shrink: 0;
+}
+.serviceList {
+  list-style: none;
+  display: flex; flex-direction: column; gap: 7px;
+  padding-left: 4px;
+}
+.serviceList li {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px;
+}
+.serviceBullet {
+  width: 5px; height: 5px;
+  background: var(--primary-mid);
+  border-radius: 50%; flex-shrink: 0;
+}
+
+@media (max-width: 1100px) {
+  .mainGrid    { grid-template-columns: 1fr; }
+  .servicesGrid { grid-template-columns: repeat(2, 1fr); }
+}
