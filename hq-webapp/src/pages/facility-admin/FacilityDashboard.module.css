@@ -1,95 +1,16 @@
-.page {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-/* ── Stats grid ── */
-.statsGrid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-
-/* ── Chart rows ── */
-.chartsRow {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 16px;
-}
-
-.chartCard {
-  padding: 20px 20px 12px;
-}
-
-.donutCard {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-}
-
-.recentCard {
-  padding: 20px;
-  overflow-y: auto;
-  max-height: 300px;
-}
-
-.chartTitle {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 12px;
-}
-
-/* ── Donut legend ── */
-.donutLegend {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
-  border-top: 1px solid var(--border-lt);
-  padding-top: 10px;
-}
-.legendRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-.legendDot {
-  width: 9px; height: 9px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.legendLabel { flex: 1; color: var(--muted); }
-.legendVal   { font-weight: 700; color: var(--text); }
-
-/* ── Activity feed ── */
-.activityList {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-.activityItem {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border-lt);
-}
-.activityItem:last-child { border-bottom: none; }
-.activityDot {
-  width: 9px; height: 9px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-top: 4px;
-}
-.activityInfo { display: flex; flex-direction: column; gap: 2px; }
-.activityName   { font-size: 13px; font-weight: 600; color: var(--text); }
+.page { display: flex; flex-direction: column; gap: 20px; }
+.statsGrid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
+.statCard  { padding: 18px 20px; display: flex; flex-direction: column; }
+.chartsRow { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.chartCard { padding: 20px 20px 12px; }
+.chartTitle { font-size: 14px; font-weight: 700; color: var(--text); margin-bottom: 14px; }
+.activityCard { padding: 20px 22px; }
+.activityList { display: flex; flex-direction: column; gap: 0; }
+.activityRow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-lt); }
+.activityRow:last-of-type { border-bottom: none; }
+.activityDot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); flex-shrink: 0; }
+.activityInfo { flex: 1; }
+.activityName { font-size: 13px; font-weight: 600; color: var(--text); }
 .activityAction { font-size: 12px; color: var(--muted); }
-.activityTime   { font-size: 11px; color: var(--muted-lt); }
-
-@media (max-width: 1100px) {
-  .statsGrid    { grid-template-columns: repeat(2, 1fr); }
-  .chartsRow    { grid-template-columns: 1fr; }
-}
+.activityTime { font-size: 11px; color: var(--muted-lt); white-space: nowrap; }
+@media (max-width: 1100px) { .statsGrid { grid-template-columns: repeat(2,1fr); } .chartsRow { grid-template-columns: 1fr; } }
