@@ -47,7 +47,7 @@ export function AuthProvider({ children }) {
     const { token, user: u } = res.data
 
     if (!['super_admin', 'facility_admin'].includes(u.role)) {
-      throw new Error('Access denied. This portal is for admin staff only.')
+      throw new Error('Access denied. This portal is for System Administrator or Facility Admin only.')
     }
 
     localStorage.setItem('hq_token', token)
