@@ -12,6 +12,7 @@ import '../../screens/profile_screen.dart';
 import '../../screens/notifications_screen.dart';
 import '../../screens/clinic_directory_screen.dart';
 import '../../screens/clinic_detail_screen.dart';
+import '../../screens/clinic_map_screen.dart';
 import '../../screens/queue_status_screen.dart';
 import '../../screens/home_screen.dart';
 
@@ -31,6 +32,7 @@ class AppRoutes {
   static const notifications   = '/notifications';
   static const clinicDirectory = '/clinics';
   static const clinicDetail    = '/clinic-detail';
+  static const clinicMap       = '/clinic-map';
 
   static Map<String, WidgetBuilder> get routes => {
     splash:          (_) => const SplashScreen(),
@@ -47,6 +49,7 @@ class AppRoutes {
     notifications:   (_) => const NotificationsScreen(),
     clinicDirectory: (_) => const ClinicDirectoryScreen(),
     clinicDetail:    (_) => const ClinicDetailScreen(),
+    clinicMap:       (_) => const ClinicMapScreen(),
     chatBot: (context) => ChatbotScreen(
       onBookAppointment: () => Navigator.pushNamed(context, bookAppointment),
       onViewQueue:       () => Navigator.pushNamed(context, queueMonitoring),
