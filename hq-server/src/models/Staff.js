@@ -34,6 +34,11 @@ const StaffSchema = new mongoose.Schema(
     email: { type: String, required: true, lowercase: true, trim: true },
     gender:   { type: String, default: '' },
   phone: { type: String, default: '' },
+    role: {
+      type: String,
+      enum: ['doctor','nurse','midwife','med_tech','pharmacist','admin'],
+      default: 'admin',
+    },
     // e.g. 'Doctor', 'Nurse', 'Receptionist', 'Specialist'
     position: { type: String, default: 'Receptionist' },
     specialization: { type: String, default: '' },
