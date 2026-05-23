@@ -1,0 +1,26 @@
+.page { display:flex; flex-direction:column; gap:16px; position:relative; }
+.toast { position:fixed; top:20px; right:24px; z-index:9999; background:#1F2937; color:#fff; padding:10px 18px; border-radius:8px; font-size:13px; font-weight:500; box-shadow:0 4px 20px rgba(0,0,0,.2); }
+.header { display:flex; align-items:center; justify-content:space-between; }
+.title  { font-size:20px; font-weight:800; color:var(--text); }
+.sub    { font-size:13px; color:var(--muted); margin-top:3px; }
+.statsRow { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+.statCard { padding:18px 22px; }
+.statLabel{ font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; color:var(--muted); }
+.statValue{ font-size:28px; font-weight:800; line-height:1; margin-top:4px; }
+.toolbar { display:flex; align-items:center; gap:10px; }
+.clinicsGrid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+.clinicCard  { padding:18px 20px; display:flex; flex-direction:column; gap:8px; }
+.clinicHeader{ display:flex; align-items:flex-start; gap:10px; margin-bottom:4px; }
+.clinicIcon  { width:36px; height:36px; border-radius:8px; background:#EFF6FF; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.clinicName  { font-size:14px; font-weight:700; color:var(--text); line-height:1.3; }
+.clinicType  { font-size:11px; color:var(--muted); margin-top:2px; }
+.clinicDetails { display:flex; flex-direction:column; gap:5px; }
+.detailRow   { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); }
+.clinicTags  { display:flex; gap:5px; flex-wrap:wrap; }
+.clinicActions { display:flex; border-top:1px solid var(--border-lt); padding-top:10px; margin-top:4px; gap:0; }
+.cActBtn { flex:1; display:flex; align-items:center; justify-content:center; gap:4px; padding:6px 0; border:none; border-right:1px solid var(--border-lt); background:transparent; cursor:pointer; font-size:11px; font-weight:600; color:var(--text-2); transition:all .15s; }
+.cActBtn:hover { background:var(--border-lt); color:var(--primary); }
+.cActBtn:last-child { border-right:none; }
+.cActDel:hover { color:var(--error) !important; }
+@media (max-width:1100px) { .clinicsGrid { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:700px)  { .clinicsGrid { grid-template-columns:1fr; } .statsRow { grid-template-columns:1fr; } }
