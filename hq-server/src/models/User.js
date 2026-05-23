@@ -7,7 +7,7 @@
  *   - patient          → mobile patient app only
  */
 const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
+const bcrypt   = require('bcryptjs');
 
 const UserSchema = new mongoose.Schema(
   {
@@ -19,33 +19,36 @@ const UserSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
-    phone: { type: String, trim: true, default: '' },
+    phone:    { type: String, trim: true, default: '' },
     password: { type: String, required: true },
     role: {
       type: String,
       enum: ['super_admin', 'facility_admin', 'staff', 'patient'],
       default: 'patient',
     },
-    // For facility_admin and staff — which clinic they belong to
     clinicId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Clinic',
       default: null,
     },
-    // OTP fields for patient phone verification
-    otp: { type: String, default: null },
-    otpExpires: { type: Date, default: null },
+    otp:        { type: String,  default: null },
+    otpExpires: { type: Date,    default: null },
     isVerified: { type: Boolean, default: false },
-    isActive: { type: Boolean, default: true },
+    isActive:   { type: Boolean, default: true },
   },
   { timestamps: true }
 );
 
-// Hash password before saving
-UserSchema.pre('save', async function () {
-  if (!this.isModified('password')) return;
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+// Hash password before saving — only when password field is modified
+UserSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next();
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Compare a plain-text candidate password with the stored hash
@@ -56,15 +59,15 @@ UserSchema.methods.comparePassword = function (candidate) {
 // Return safe user object (no password)
 UserSchema.methods.toSafeObject = function () {
   return {
-    id: this._id,
-    fullName: this.fullName,
-    email: this.email,
-    phone: this.phone,
-    role: this.role,
-    clinicId: this.clinicId,
+    id:         this._id,
+    fullName:   this.fullName,
+    email:      this.email,
+    phone:      this.phone,
+    role:       this.role,
+    clinicId:   this.clinicId,
     isVerified: this.isVerified,
-    isActive: this.isActive,
-    createdAt: this.createdAt,
+    isActive:   this.isActive,
+    createdAt:  this.createdAt,
   };
 };
 
