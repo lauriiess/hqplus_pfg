@@ -29,7 +29,10 @@ export default function StaffPage() {
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(''), 3000) }
 
   const load = () => {
-    if (!clinicId) { setLoading(false); return }
+    if (!clinicId) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     api.get('/api/staff', { params: { clinicId } })
       .then(r => setStaff(r.data || []))
@@ -57,6 +60,10 @@ export default function StaffPage() {
   const close    = () => { setModal(null); setSelected(null) }
 
   const save = async () => {
+    if (!clinicId) {
+      showToast('Your account is not linked to a clinic. Please contact System Administrator.')
+      return
+    }
     if (!form.fullName.trim() || !form.email.trim()) {
       showToast('Name and email are required'); return
     }
@@ -131,6 +138,11 @@ export default function StaffPage() {
   return (
     <div className={styles.page}>
       {toast && <div className={styles.toast}>{toast}</div>}
+      {!clinicId && (
+        <div style={{padding:'12px 16px',background:'#FEF3C7',border:'1px solid #F59E0B',borderRadius:8,marginBottom:12,fontSize:13,color:'#92400E'}}>
+          <strong>No clinic assigned.</strong> Your facility admin account is not linked to a clinic. Run the seed script or ask a System Administrator to assign your account to a clinic.
+        </div>
+      )}
 
       <div className="card">
         <div className={styles.header}>
