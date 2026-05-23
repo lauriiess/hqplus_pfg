@@ -50,7 +50,7 @@ class _ClinicDetailScreenState extends State<ClinicDetailScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Joined queue successfully!'),
           backgroundColor: AppColors.success));
-      Navigator.pushNamed(context, AppRoutes.queueStatus);
+      Navigator.pushNamed(context, AppRoutes.joinQueue);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
