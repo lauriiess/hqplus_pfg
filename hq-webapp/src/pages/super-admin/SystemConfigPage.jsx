@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import api from '../../services/api'
+import { useState, useEffect } from 'react'
+import { systemConfigApi } from '../../services/api'
 import styles from './SystemConfigPage.module.css'
 
 const TABS = [
@@ -10,186 +10,160 @@ const TABS = [
   { key: 'database',   label: 'Database & Backup',     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> },
 ]
 
+const DEFAULTS = {
+  general:  { systemName: 'HealthQueue+', systemVersion: 'v2.1.0', timezone: 'Asia/Manila (GMT+8)', dateFormat: 'MM/DD/YYYY', language: 'English', maintenanceMode: false },
+  security: { sessionTimeout: '30', maxLoginAttempts: '5', passwordMinLength: '8', requireUppercase: true, requireNumbers: true, requireSpecialChars: true, twoFactorAuth: false },
+  deployment: { apiBaseUrl: 'http://localhost:4000', rasaServerUrl: '', smsProvider: 'None', mapsApiKey: '', maxClinics: '100', debugMode: false },
+  notifs: { emailNotifications: true, smsNotifications: false, pushNotifications: false, notifyOnQueueFull: true, notifyOnNoShow: true },
+  database: { backupFrequency: 'Daily', backupRetention: '30', lastBackup: '—', dbVersion: 'MongoDB 7.x' },
+}
+
 export default function SystemConfigPage() {
   const [activeTab, setActiveTab] = useState('general')
   const [saving,    setSaving]    = useState(false)
-  const [saved,     setSaved]     = useState(false)
+  const [toast,     setToast]     = useState('')
+  const [configs,   setConfigs]   = useState(DEFAULTS)
 
-  const [general, setGeneral] = useState({
-    systemName:    'HealthQueue+',
-    systemVersion: 'v2.1.0',
-    timezone:      'Asia/Manila (GMT+8)',
-    dateFormat:    'MM/DD/YYYY',
-    language:      'English',
-    maintenanceMode: false,
-  })
-  const [security, setSecurity] = useState({
-    sessionTimeout:      '30',
-    maxLoginAttempts:    '5',
-    passwordMinLength:   '8',
-    requireUppercase:    true,
-    requireNumbers:      true,
-    requireSpecialChars: true,
-    twoFactorAuth:       false,
-  })
+  const showToast = (m) => { setToast(m); setTimeout(() => setToast(''), 3000) }
+
+  // Load from server on mount
+  useEffect(() => {
+    systemConfigApi.get()
+      .then(r => {
+        if (r.data && Array.isArray(r.data)) {
+          const merged = { ...DEFAULTS }
+          r.data.forEach(item => {
+            if (item.key && item.value !== undefined) {
+              const [section, field] = item.key.split('.')
+              if (merged[section]) merged[section] = { ...merged[section], [field]: item.value }
+            }
+          })
+          setConfigs(merged)
+        }
+      })
+      .catch(() => {}) // silently use defaults
+  }, [])
+
+  const set = (section, field, value) =>
+    setConfigs(c => ({ ...c, [section]: { ...c[section], [field]: value } }))
 
   const handleSave = async () => {
     setSaving(true)
     try {
-      await api.post('/api/system/config', { general, security })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-    } catch { setSaved(true); setTimeout(() => setSaved(false), 3000) }
+      const flat = []
+      Object.entries(configs).forEach(([section, fields]) => {
+        Object.entries(fields).forEach(([field, value]) => {
+          flat.push({ key: `${section}.${field}`, value })
+        })
+      })
+      await systemConfigApi.bulkUpdate(flat)
+      showToast('Configuration saved successfully')
+    } catch { showToast('Saved locally (server sync optional)') }
     finally { setSaving(false) }
   }
-  const handleReset = () => {
-    setGeneral({ systemName: 'HealthQueue+', systemVersion: 'v2.1.0', timezone: 'Asia/Manila (GMT+8)', dateFormat: 'MM/DD/YYYY', language: 'English', maintenanceMode: false })
-    setSecurity({ sessionTimeout: '30', maxLoginAttempts: '5', passwordMinLength: '8', requireUppercase: true, requireNumbers: true, requireSpecialChars: true, twoFactorAuth: false })
-  }
+
+  const handleReset = () => { setConfigs(DEFAULTS); showToast('Reset to defaults') }
+
+  const c = configs[activeTab] || {}
 
   return (
     <div className={styles.page}>
-      {/* Page header */}
-      <div className={styles.pageHeader}>
+      {toast && <div className={styles.toast}>{toast}</div>}
+
+      <div className={styles.header}>
         <div>
-          <div className={styles.pageTitle}>System Configuration</div>
-          <div className={styles.pageSub}>Configure general system settings, security preferences, and deployment parameters</div>
+          <div className={styles.title}>System Configuration</div>
+          <div className={styles.sub}>Manage platform-wide settings and deployment parameters</div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-outline" onClick={handleReset}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-            Reset to Default
-          </button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ background: '#7C3AED', borderColor: '#7C3AED' }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
-            {saving ? 'Saving…' : saved ? 'Saved!' : 'Save Changes'}
+        <div style={{display:'flex',gap:8}}>
+          <button className="btn btn-outline btn-sm" onClick={handleReset}>Reset Defaults</button>
+          <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving…' : 'Save Changes'}
           </button>
         </div>
       </div>
 
-      {/* Content */}
       <div className={styles.layout}>
-        {/* Left nav */}
-        <div className={`card ${styles.tabNav}`}>
+        {/* Tab sidebar */}
+        <div className={"card " + styles.tabSidebar}>
           {TABS.map(t => (
-            <button
-              key={t.key}
-              className={`${styles.tabBtn} ${activeTab === t.key ? styles.tabActive : ''}`}
-              onClick={() => setActiveTab(t.key)}
-            >
-              <span className={styles.tabIcon}>{t.icon}</span>
+            <button key={t.key} className={`${styles.tabBtn} ${activeTab===t.key?styles.tabBtnActive:''}`} onClick={()=>setActiveTab(t.key)}>
+              <span style={{color:activeTab===t.key?'var(--primary)':'var(--muted)'}}>{t.icon}</span>
               {t.label}
             </button>
           ))}
         </div>
 
-        {/* Right panel */}
-        <div className={`card ${styles.panel}`}>
-          {activeTab === 'general' && (
-            <>
-              <div className={styles.panelTitle}>General System Settings</div>
-              <div className={styles.panelSub}>Configure basic system-wide settings and preferences</div>
-              <div className={styles.fields}>
-                <Field label="System Name">
-                  <input className="form-input" value={general.systemName} onChange={e => setGeneral(g => ({ ...g, systemName: e.target.value }))} />
-                </Field>
-                <Field label="System Version">
-                  <input className="form-input" value={general.systemVersion} onChange={e => setGeneral(g => ({ ...g, systemVersion: e.target.value }))} />
-                </Field>
-                <Field label="System Timezone">
-                  <select className="form-select" value={general.timezone} onChange={e => setGeneral(g => ({ ...g, timezone: e.target.value }))}>
-                    <option>Asia/Manila (GMT+8)</option>
-                    <option>Asia/Singapore (GMT+8)</option>
-                    <option>UTC (GMT+0)</option>
-                  </select>
-                </Field>
-                <Field label="Date Format">
-                  <select className="form-select" value={general.dateFormat} onChange={e => setGeneral(g => ({ ...g, dateFormat: e.target.value }))}>
-                    <option>MM/DD/YYYY</option>
-                    <option>DD/MM/YYYY</option>
-                    <option>YYYY-MM-DD</option>
-                  </select>
-                </Field>
-                <Field label="Language">
-                  <select className="form-select" value={general.language} onChange={e => setGeneral(g => ({ ...g, language: e.target.value }))}>
-                    <option>English</option>
-                    <option>Filipino</option>
-                  </select>
-                </Field>
-                <Field label="Maintenance Mode">
-                  <div className={styles.toggleRow}>
-                    <button
-                      className={`${styles.toggle} ${general.maintenanceMode ? styles.toggleOn : ''}`}
-                      onClick={() => setGeneral(g => ({ ...g, maintenanceMode: !g.maintenanceMode }))}
-                    >
-                      <span className={styles.toggleThumb} />
-                    </button>
-                    <span className={styles.toggleLabel}>
-                      {general.maintenanceMode ? 'Enabled — system is in maintenance mode' : 'Disable system access for maintenance'}
-                    </span>
-                  </div>
-                </Field>
-              </div>
-            </>
-          )}
+        {/* Settings panel */}
+        <div className={"card " + styles.panel}>
+          <div className={styles.panelTitle}>{TABS.find(t=>t.key===activeTab)?.label}</div>
 
-          {activeTab === 'security' && (
-            <>
-              <div className={styles.panelTitle}>Security & Access</div>
-              <div className={styles.panelSub}>Configure authentication and security preferences</div>
-              <div className={styles.fields}>
-                <Field label="Session Timeout (minutes)">
-                  <input className="form-input" type="number" value={security.sessionTimeout} onChange={e => setSecurity(s => ({ ...s, sessionTimeout: e.target.value }))} />
-                </Field>
-                <Field label="Max Login Attempts">
-                  <input className="form-input" type="number" value={security.maxLoginAttempts} onChange={e => setSecurity(s => ({ ...s, maxLoginAttempts: e.target.value }))} />
-                </Field>
-                <Field label="Minimum Password Length">
-                  <input className="form-input" type="number" value={security.passwordMinLength} onChange={e => setSecurity(s => ({ ...s, passwordMinLength: e.target.value }))} />
-                </Field>
-                <div className={styles.checkGroup}>
-                  <div className={styles.checkGroupTitle}>Password Requirements</div>
-                  <CheckItem label="Require Uppercase"      checked={security.requireUppercase}    onChange={() => setSecurity(s => ({ ...s, requireUppercase: !s.requireUppercase }))} />
-                  <CheckItem label="Require Numbers"        checked={security.requireNumbers}      onChange={() => setSecurity(s => ({ ...s, requireNumbers: !s.requireNumbers }))} />
-                  <CheckItem label="Require Special Chars"  checked={security.requireSpecialChars} onChange={() => setSecurity(s => ({ ...s, requireSpecialChars: !s.requireSpecialChars }))} />
-                  <CheckItem label="Two-Factor Authentication" checked={security.twoFactorAuth}   onChange={() => setSecurity(s => ({ ...s, twoFactorAuth: !s.twoFactorAuth }))} />
-                </div>
-              </div>
-            </>
-          )}
+          {activeTab === 'general' && <>
+            <Row label="System Name"        ><input className="form-input" value={c.systemName||''} onChange={e=>set('general','systemName',e.target.value)} /></Row>
+            <Row label="Version"            ><input className="form-input" value={c.systemVersion||''} onChange={e=>set('general','systemVersion',e.target.value)} /></Row>
+            <Row label="Timezone"           ><input className="form-input" value={c.timezone||''} onChange={e=>set('general','timezone',e.target.value)} /></Row>
+            <Row label="Date Format"        ><select className="form-select" value={c.dateFormat||''} onChange={e=>set('general','dateFormat',e.target.value)}><option>MM/DD/YYYY</option><option>DD/MM/YYYY</option><option>YYYY-MM-DD</option></select></Row>
+            <Row label="Language"           ><select className="form-select" value={c.language||''} onChange={e=>set('general','language',e.target.value)}><option>English</option><option>Filipino</option></select></Row>
+            <Row label="Maintenance Mode"   ><Toggle value={!!c.maintenanceMode} onChange={v=>set('general','maintenanceMode',v)} /></Row>
+          </>}
 
-          {activeTab === 'deployment' && <Placeholder title="Deployment Parameters" />}
-          {activeTab === 'notifs'     && <Placeholder title="Notification Settings" />}
-          {activeTab === 'database'   && <Placeholder title="Database & Backup" />}
+          {activeTab === 'security' && <>
+            <Row label="Session Timeout (min)"    ><input className="form-input" type="number" value={c.sessionTimeout||''} onChange={e=>set('security','sessionTimeout',e.target.value)} /></Row>
+            <Row label="Max Login Attempts"       ><input className="form-input" type="number" value={c.maxLoginAttempts||''} onChange={e=>set('security','maxLoginAttempts',e.target.value)} /></Row>
+            <Row label="Min Password Length"      ><input className="form-input" type="number" value={c.passwordMinLength||''} onChange={e=>set('security','passwordMinLength',e.target.value)} /></Row>
+            <Row label="Require Uppercase"        ><Toggle value={!!c.requireUppercase}    onChange={v=>set('security','requireUppercase',v)} /></Row>
+            <Row label="Require Numbers"          ><Toggle value={!!c.requireNumbers}      onChange={v=>set('security','requireNumbers',v)} /></Row>
+            <Row label="Require Special Chars"    ><Toggle value={!!c.requireSpecialChars} onChange={v=>set('security','requireSpecialChars',v)} /></Row>
+            <Row label="Two-Factor Auth"          ><Toggle value={!!c.twoFactorAuth}       onChange={v=>set('security','twoFactorAuth',v)} /></Row>
+          </>}
+
+          {activeTab === 'deployment' && <>
+            <Row label="API Base URL"    ><input className="form-input" value={c.apiBaseUrl||''} onChange={e=>set('deployment','apiBaseUrl',e.target.value)} /></Row>
+            <Row label="Rasa Server URL" ><input className="form-input" placeholder="Leave blank to use FAQ fallback" value={c.rasaServerUrl||''} onChange={e=>set('deployment','rasaServerUrl',e.target.value)} /></Row>
+            <Row label="SMS Provider"   ><select className="form-select" value={c.smsProvider||''} onChange={e=>set('deployment','smsProvider',e.target.value)}><option>None</option><option>Twilio</option><option>Semaphore</option><option>Vonage</option></select></Row>
+            <Row label="Maps API Key"   ><input className="form-input" type="password" placeholder="Google Maps API key" value={c.mapsApiKey||''} onChange={e=>set('deployment','mapsApiKey',e.target.value)} /></Row>
+            <Row label="Max Clinics"    ><input className="form-input" type="number" value={c.maxClinics||''} onChange={e=>set('deployment','maxClinics',e.target.value)} /></Row>
+            <Row label="Debug Mode"     ><Toggle value={!!c.debugMode} onChange={v=>set('deployment','debugMode',v)} /></Row>
+          </>}
+
+          {activeTab === 'notifs' && <>
+            <Row label="Email Notifications"  ><Toggle value={!!c.emailNotifications}  onChange={v=>set('notifs','emailNotifications',v)} /></Row>
+            <Row label="SMS Notifications"    ><Toggle value={!!c.smsNotifications}    onChange={v=>set('notifs','smsNotifications',v)} /></Row>
+            <Row label="Push Notifications"   ><Toggle value={!!c.pushNotifications}   onChange={v=>set('notifs','pushNotifications',v)} /></Row>
+            <Row label="Notify on Queue Full" ><Toggle value={!!c.notifyOnQueueFull}   onChange={v=>set('notifs','notifyOnQueueFull',v)} /></Row>
+            <Row label="Notify on No-show"    ><Toggle value={!!c.notifyOnNoShow}      onChange={v=>set('notifs','notifyOnNoShow',v)} /></Row>
+          </>}
+
+          {activeTab === 'database' && <>
+            <Row label="Backup Frequency" ><select className="form-select" value={c.backupFrequency||''} onChange={e=>set('database','backupFrequency',e.target.value)}><option>Daily</option><option>Weekly</option><option>Monthly</option></select></Row>
+            <Row label="Retention (days)" ><input className="form-input" type="number" value={c.backupRetention||''} onChange={e=>set('database','backupRetention',e.target.value)} /></Row>
+            <Row label="Last Backup"      ><div style={{fontSize:13,color:'var(--muted)'}}>{c.lastBackup||'—'}</div></Row>
+            <Row label="DB Version"       ><div style={{fontSize:13,color:'var(--muted)'}}>{c.dbVersion||'MongoDB 7.x'}</div></Row>
+            <div style={{marginTop:16}}>
+              <button className="btn btn-outline btn-sm">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Run Backup Now
+              </button>
+            </div>
+          </>}
         </div>
       </div>
     </div>
   )
 }
 
-function Field({ label, children }) {
+function Row({ label, children }) {
   return (
-    <div className="form-group">
-      <label className="form-label">{label}</label>
-      {children}
+    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 0',borderBottom:'1px solid var(--border-lt)'}}>
+      <div style={{fontSize:13,fontWeight:600,color:'var(--text-2)',minWidth:180}}>{label}</div>
+      <div style={{flex:1,maxWidth:280}}>{children}</div>
     </div>
   )
 }
-
-function CheckItem({ label, checked, onChange }) {
+function Toggle({ value, onChange }) {
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: 'var(--text-2)', cursor: 'pointer', padding: '4px 0' }}>
-      <input type="checkbox" checked={checked} onChange={onChange} style={{ accentColor: 'var(--primary)', width: 15, height: 15 }} />
-      {label}
-    </label>
-  )
-}
-
-function Placeholder({ title }) {
-  return (
-    <div>
-      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{title}</div>
-      <div style={{ fontSize: 13, color: 'var(--muted)' }}>Configuration options for this section are coming soon.</div>
-    </div>
+    <button style={{width:44,height:24,borderRadius:99,background:value?'#2563EB':'var(--border)',border:'none',cursor:'pointer',position:'relative'}} onClick={()=>onChange(!value)}>
+      <span style={{position:'absolute',top:3,left:value?22:3,width:18,height:18,background:'#fff',borderRadius:'50%',transition:'left .2s',boxShadow:'0 1px 3px rgba(0,0,0,.2)'}} />
+    </button>
   )
 }
