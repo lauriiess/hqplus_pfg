@@ -20,7 +20,7 @@ const UserSchema = new mongoose.Schema(
       trim: true,
     },
     phone:    { type: String, trim: true, default: '' },
-    password: { type: String, required: true },
+    password: { type: String, required: true, select: false },
     role: {
       type: String,
       enum: ['super_admin', 'facility_admin', 'staff', 'patient'],
