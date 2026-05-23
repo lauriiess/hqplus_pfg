@@ -2,12 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../core/routes/app_routes.dart';
-import '../core/theme/app_theme.dart';
+import '../core/constants/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  @override State<SplashScreen> createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends State<SplashScreen> {
@@ -20,13 +19,12 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _navigate() async {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
-    final state = context.read<AppState>();
-    // Give session restoration a moment
-    await Future.delayed(const Duration(milliseconds: 500));
+    final appState = context.read<AppState>();
+    await appState.tryAutoLogin();
     if (!mounted) return;
     Navigator.pushReplacementNamed(
       context,
-      state.isLoggedIn ? AppRoutes.home : AppRoutes.login,
+      appState.isLoggedIn ? AppRoutes.dashboard : AppRoutes.login,
     );
   }
 
@@ -36,29 +34,33 @@ class _SplashScreenState extends State<SplashScreen> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [AppColors.bgTop, AppColors.bgBottom],
           ),
         ),
-        child: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircleAvatar(
-                radius: 48,
-                backgroundColor: Colors.white,
-                child: Icon(Icons.local_hospital_rounded, color: AppColors.primary, size: 52),
-              ),
-              SizedBox(height: 24),
-              Text('HealthQueue+',
-                style: TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w800)),
-              SizedBox(height: 8),
-              Text('Your health, on time.',
-                style: TextStyle(color: Colors.white70, fontSize: 15)),
-              SizedBox(height: 48),
-              CircularProgressIndicator(color: Colors.white54, strokeWidth: 2),
-            ],
+        child: const SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircleAvatar(
+                  radius: 44,
+                  backgroundColor: Colors.white,
+                  child: Icon(Icons.local_hospital_rounded,
+                    color: AppColors.primary, size: 44),
+                ),
+                SizedBox(height: 20),
+                Text('HealthQueue+',
+                  style: TextStyle(color: Colors.white, fontSize: 32,
+                    fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                SizedBox(height: 8),
+                Text('AI-Driven Queue Management',
+                  style: TextStyle(color: Colors.white70, fontSize: 14)),
+                SizedBox(height: 40),
+                CircularProgressIndicator(color: Colors.white70, strokeWidth: 2),
+              ],
+            ),
           ),
         ),
       ),
