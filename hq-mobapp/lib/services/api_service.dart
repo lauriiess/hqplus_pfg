@@ -6,7 +6,7 @@ class ApiConfig {
   // ✏️ Change this to your PC's local IP before running on a real device.
   // Run: ipconfig (Windows) → IPv4 Address under your WiFi adapter.
   // Make sure your phone and PC are on the SAME WiFi network.
-  static const String baseUrl = 'http://192.168.1.100:4000';
+  static const String baseUrl = 'http://192.168.137.1:4000';
   static const Duration timeout = Duration(seconds: 15);
 }
 
