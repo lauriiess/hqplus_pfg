@@ -41,15 +41,18 @@ class _JoinQueueScreenState extends State<JoinQueueScreen> {
         serviceName: selectedService!,
         priority:    patientType == PatientType.priority,
       );
+      // data['entry'] has the full QueueEntry with _id from server
+      final entry = data['entry'] as Map<String, dynamic>? ?? data;
       final result = QueueJoinResult(
+        entryId:     entry['_id']?.toString() ?? '',
         clinicId:    selectedClinic!.id,
         clinicName:  selectedClinic!.name,
         serviceId:   selectedService!,
         serviceName: selectedService!,
         queueType:   patientType == PatientType.priority ? QueueType.priority : QueueType.regular,
-        queueNumber: data['ticketNumber'] ?? data['queueNumber'] ?? 'Q-${DateTime.now().millisecondsSinceEpoch % 1000}',
-        position:    (data['position'] ?? data['queuePosition'] ?? 1) as int,
-        totalAhead:  (data['totalAhead'] ?? data['peopleAhead'] ?? 0) as int,
+        queueNumber: data['ticketNumber'] ?? entry['queueNumber'] ?? 'Q-${DateTime.now().millisecondsSinceEpoch % 1000}',
+        position:    (data['peopleAhead'] ?? entry['positionAtJoin'] ?? 1) as int,
+        totalAhead:  (data['peopleAhead'] ?? 0) as int,
         estimatedWaitTimeMinutes: (data['estimatedWaitTime'] ?? estimatedWait) as int,
         joinedAt: DateTime.now(),
       );
