@@ -57,7 +57,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ..sort((a, b) => a.score.compareTo(b.score));
 
     final best = scored.first.clinic;
-    final reason = _buildReason(best, scored);
+    final reason = _buildReason(scored.first);
 
     showModalBottomSheet(
       context: context,
