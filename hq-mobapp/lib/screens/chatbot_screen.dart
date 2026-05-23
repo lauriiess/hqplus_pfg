@@ -1,206 +1,148 @@
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
-import '../core/theme/app_theme.dart';
-
-class _Message {
-  final String text;
-  final bool   isUser;
-  final bool   isError;
-  const _Message(this.text, {required this.isUser, this.isError = false});
-}
+import 'package:provider/provider.dart';
+import '../core/constants/app_colors.dart';
+import '../state/app_state.dart';
+import '../models/chat_models.dart';
 
 class ChatbotScreen extends StatefulWidget {
-  const ChatbotScreen({super.key});
-  @override
-  State<ChatbotScreen> createState() => _ChatbotScreenState();
+  final VoidCallback onBookAppointment;
+  final VoidCallback onViewQueue;
+  const ChatbotScreen({super.key, required this.onBookAppointment, required this.onViewQueue});
+  @override State<ChatbotScreen> createState() => _ChatbotScreenState();
 }
 
 class _ChatbotScreenState extends State<ChatbotScreen> {
-  final _msgCtrl    = TextEditingController();
-  final _scrollCtrl = ScrollController();
-  bool _sending     = false;
+  final _ctrl   = TextEditingController();
+  final _scroll = ScrollController();
 
-  final List<_Message> _messages = [
-    const _Message(
-      'Hello! I am your HealthQueue+ assistant 👋\nHow can I help you today?',
-      isUser: false,
-    ),
-  ];
-
-  static const _suggestions = [
-    'Queue status', 'Book appointment', 'Operating hours',
-    'Departments', 'Cancel appointment', 'Walk-in',
-  ];
-
-  @override
-  void dispose() { _msgCtrl.dispose(); _scrollCtrl.dispose(); super.dispose(); }
-
-  Future<void> _send([String? overrideText]) async {
-    final text = (overrideText ?? _msgCtrl.text).trim();
-    if (text.isEmpty || _sending) return;
-    _msgCtrl.clear();
-
-    setState(() {
-      _messages.add(_Message(text, isUser: true));
-      _sending = true;
-    });
-    _scrollDown();
-
-    try {
-      final reply = await ApiService.sendChatMessage(text);
-      if (mounted) setState(() => _messages.add(_Message(reply, isUser: false)));
-    } catch (e) {
-      if (mounted) setState(() => _messages.add(_Message(
-        'Sorry, I could not connect to the server. Please try again.',
-        isUser: false, isError: true,
-      )));
-    } finally {
-      if (mounted) setState(() => _sending = false);
-      _scrollDown();
-    }
+  @override void initState() {
+    super.initState();
+    context.read<AppState>().seedChatIfEmpty();
   }
+  @override void dispose() { _ctrl.dispose(); _scroll.dispose(); super.dispose(); }
 
-  void _scrollDown() => Future.delayed(const Duration(milliseconds: 150), () {
-    if (_scrollCtrl.hasClients) {
-      _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
-    }
-  });
+  void _send([String? text]) async {
+    final msg = (text ?? _ctrl.text).trim();
+    if (msg.isEmpty) return;
+    _ctrl.clear();
+    await context.read<AppState>().sendMessage(msg);
+    await Future.delayed(const Duration(milliseconds: 100));
+    if (_scroll.hasClients) _scroll.animateTo(
+      _scroll.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final messages = context.watch<AppState>().messages;
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB),
       appBar: AppBar(
-        title: const Text('HealthQueue+ Assistant'),
-        backgroundColor: AppColors.primary, foregroundColor: Colors.white,
-        actions: [
-          Container(
-            margin: const EdgeInsets.only(right: 14),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: Colors.green.shade500, borderRadius: BorderRadius.circular(99)),
-            child: const Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.circle, size: 7, color: Colors.white),
-              SizedBox(width: 5),
-              Text('Online', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-            ]),
-          ),
-        ],
-      ),
-      body: Column(children: [
-        // Quick suggestion chips
-        Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(children: _suggestions.map((q) => GestureDetector(
-              onTap: _sending ? null : () => _send(q),
-              child: Container(
-                margin: const EdgeInsets.only(right: 8),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(99),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.25)),
-                ),
-                child: Text(q, style: const TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600)),
-              ),
-            )).toList()),
-          ),
-        ),
-
-        // Messages list
-        Expanded(
-          child: _messages.isEmpty
-            ? const Center(child: Text('Ask me anything about HealthQueue+',
-                style: TextStyle(color: AppColors.textMuted)))
-            : ListView.builder(
-                controller: _scrollCtrl,
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                itemCount: _messages.length + (_sending ? 1 : 0),
-                itemBuilder: (_, i) {
-                  // Typing bubble
-                  if (i == _messages.length) return Align(
-                    alignment: Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6)]),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: List.generate(3, (d) => Container(
-                        width: 6, height: 6, margin: EdgeInsets.only(right: d < 2 ? 4 : 0),
-                        decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
-                      ))),
-                    ),
-                  );
-
-                  final msg = _messages[i];
-                  return Align(
-                    alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: msg.isError
-                          ? const Color(0xFFFEF2F2)
-                          : (msg.isUser ? AppColors.primary : Colors.white),
-                        borderRadius: BorderRadius.only(
-                          topLeft:     const Radius.circular(18),
-                          topRight:    const Radius.circular(18),
-                          bottomLeft:  Radius.circular(msg.isUser ? 18 : 4),
-                          bottomRight: Radius.circular(msg.isUser ? 4 : 18),
-                        ),
-                        border: msg.isError ? Border.all(color: const Color(0xFFFCA5A5)) : null,
-                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 6, offset: const Offset(0,2))],
-                      ),
-                      child: Text(msg.text, style: TextStyle(
-                        fontSize: 14, height: 1.45,
-                        color: msg.isError
-                          ? const Color(0xFF991B1B)
-                          : (msg.isUser ? Colors.white : AppColors.textDark),
-                      )),
-                    ),
-                  );
-                },
-              ),
-        ),
-
-        // Input bar
-        Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 24),
-          child: Row(children: [
-            Expanded(
-              child: TextField(
-                controller: _msgCtrl,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _send(),
-                decoration: InputDecoration(
-                  hintText: 'Type your message…',
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(99), borderSide: BorderSide(color: Colors.grey.shade300)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(99), borderSide: BorderSide(color: Colors.grey.shade300)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(99), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            GestureDetector(
-              onTap: _sending ? null : _send,
-              child: Container(
-                width: 46, height: 46,
-                decoration: BoxDecoration(
-                  color: _sending ? Colors.grey.shade300 : AppColors.primary,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-              ),
-            ),
+        backgroundColor: Colors.white, foregroundColor: AppColors.textDark,
+        title: Row(children: [
+          CircleAvatar(radius: 16, backgroundColor: AppColors.primary.withOpacity(0.12),
+            child: const Icon(Icons.smart_toy_outlined, color: AppColors.primary, size: 18)),
+          const SizedBox(width: 10),
+          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('AI Health Assistant', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+            Text('Online', style: TextStyle(color: Colors.green, fontSize: 11)),
           ]),
-        ),
+        ])),
+      body: Column(children: [
+        Expanded(child: ListView.builder(
+          controller: _scroll,
+          padding: const EdgeInsets.all(16),
+          itemCount: messages.length,
+          itemBuilder: (_, i) => _Bubble(msg: messages[i],
+            onQuickReply: _send,
+            onBookAppointment: widget.onBookAppointment,
+            onViewQueue: widget.onViewQueue))),
+        _InputBar(ctrl: _ctrl, onSend: _send),
       ]),
     );
   }
+}
+
+class _Bubble extends StatelessWidget {
+  final ChatMessage msg;
+  final void Function(String) onQuickReply;
+  final VoidCallback onBookAppointment;
+  final VoidCallback onViewQueue;
+  const _Bubble({required this.msg, required this.onQuickReply,
+    required this.onBookAppointment, required this.onViewQueue});
+
+  @override
+  Widget build(BuildContext context) {
+    final isBot = msg.sender == ChatSender.bot;
+    return Column(crossAxisAlignment: isBot ? CrossAxisAlignment.start : CrossAxisAlignment.end, children: [
+      Row(
+        mainAxisAlignment: isBot ? MainAxisAlignment.start : MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (isBot) ...[
+            CircleAvatar(radius: 14, backgroundColor: AppColors.primary.withOpacity(0.12),
+              child: const Icon(Icons.smart_toy_outlined, color: AppColors.primary, size: 16)),
+            const SizedBox(width: 8),
+          ],
+          Flexible(child: Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isBot ? Colors.white : AppColors.primary,
+              borderRadius: BorderRadius.only(
+                topLeft: const Radius.circular(16),
+                topRight: const Radius.circular(16),
+                bottomLeft: Radius.circular(isBot ? 4 : 16),
+                bottomRight: Radius.circular(isBot ? 16 : 4)),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)]),
+            child: Text(msg.message,
+              style: TextStyle(color: isBot ? AppColors.textDark : Colors.white, fontSize: 14)))),
+        ]),
+      if (isBot && msg.quickReplies.isNotEmpty) ...[
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, runSpacing: 6,
+          children: msg.quickReplies.map((r) => GestureDetector(
+            onTap: () {
+              if (r == 'Book appointment') { onBookAppointment(); return; }
+              if (r == 'Check my queue') { onViewQueue(); return; }
+              onQuickReply(r);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white, borderRadius: BorderRadius.circular(99),
+                border: Border.all(color: AppColors.primary.withOpacity(0.4))),
+              child: Text(r, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 12))))).toList()),
+      ],
+      const SizedBox(height: 12),
+    ]);
+  }
+}
+
+class _InputBar extends StatelessWidget {
+  final TextEditingController ctrl;
+  final void Function([String?]) onSend;
+  const _InputBar({required this.ctrl, required this.onSend});
+  @override
+  Widget build(BuildContext context) => Container(
+    color: Colors.white,
+    padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
+    child: Row(children: [
+      Expanded(child: TextField(
+        controller: ctrl,
+        textInputAction: TextInputAction.send,
+        onSubmitted: (_) => onSend(),
+        decoration: InputDecoration(
+          hintText: 'Ask me anything...',
+          filled: true, fillColor: AppColors.fieldFill,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide.none)))),
+      const SizedBox(width: 8),
+      GestureDetector(
+        onTap: () => onSend(),
+        child: Container(width: 44, height: 44,
+          decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(22)),
+          child: const Icon(Icons.send_rounded, color: Colors.white, size: 20))),
+    ]));
 }
