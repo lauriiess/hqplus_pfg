@@ -14,7 +14,7 @@ const getSuperAdminStats = async (req, res) => {
 
     const [totalClinics, activeClinics, totalUsers, totalPatients, todayQueue, todayAppointments] = await Promise.all([
       Clinic.countDocuments(),
-      Clinic.countDocuments({ status: 'active' }),
+      Clinic.countDocuments({ status: { $in: ['open','busy'] } }),
       User.countDocuments({ isActive: true }),
       Patient.countDocuments(),
       QueueEntry.countDocuments({ joinedAt: { $gte: todayStart }, status: { $ne: 'cancelled' } }),
@@ -42,13 +42,13 @@ const getFacilityStats = async (req, res) => {
 
     const [todayEntries, completedCount, servingCount, waitingCount] = await Promise.all([
       QueueEntry.find(qFilter).populate('patient', 'fullName phone patientType').sort({ joinedAt: 1 }),
-      QueueEntry.countDocuments({ ...qFilter, status: 'completed' }),
+      QueueEntry.countDocuments({ ...qFilter, status: { $in: ['done','completed'] } }),
       QueueEntry.countDocuments({ ...qFilter, status: 'serving' }),
       QueueEntry.countDocuments({ ...qFilter, status: 'waiting' }),
     ]);
 
     // Avg wait time (completed entries only)
-    const completedEntries = todayEntries.filter(e => e.status === 'completed' && e.calledAt && e.joinedAt);
+    const completedEntries = todayEntries.filter(e => ['done','completed'].includes(e.status) && e.calledAt && e.joinedAt);
     const avgWait = completedEntries.length
       ? Math.round(completedEntries.reduce((s,e) => s + (new Date(e.calledAt) - new Date(e.joinedAt)) / 60000, 0) / completedEntries.length)
       : 0;
