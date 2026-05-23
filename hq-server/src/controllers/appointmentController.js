@@ -410,7 +410,40 @@ const deleteTimeSlot = async (req, res) => {
   }
 };
 
-module.exports = {
+
+// GET /api/appointments/my — patient fetches their own appointments
+const getMyAppointments = async (req, res) => {
+  try {
+    const Appointment = require('../models/Appointment');
+    const mongoose    = require('mongoose');
+    const appts = await Appointment.find({
+      patient: new mongoose.Types.ObjectId(String(req.user._id))
+    })
+    .populate('clinic', 'name address city contactNumber')
+    .sort({ appointmentDate: -1 });
+    return res.json(appts);
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to fetch your appointments.' });
+  }
+};
+
+// PUT /api/appointments/:id/cancel — patient cancels appointment
+const cancelMyAppointment = async (req, res) => {
+  try {
+    const Appointment = require('../models/Appointment');
+    const appt = await Appointment.findOneAndUpdate(
+      { _id: req.params.id, patient: req.user._id },
+      { status: 'cancelled', cancelReason: req.body.reason || 'Cancelled by patient' },
+      { new: true }
+    );
+    if (!appt) return res.status(404).json({ message: 'Appointment not found.' });
+    return res.json({ message: 'Appointment cancelled.', appointment: appt });
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to cancel appointment.' });
+  }
+};
+
+module.exports = { getMyAppointments, cancelMyAppointment,
   bookAppointment,
   getAppointments,
   getAppointment,
