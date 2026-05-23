@@ -60,7 +60,7 @@ export default function LoginPage() {
             className={`${styles.tab} ${tab === 'super' ? styles.tabActive : ''}`}
             onClick={() => { setTab('super'); setEmail(''); setPass(''); setError('') }}
           >
-            Super Admin
+            System Administrator
           </button>
         </div>
 
