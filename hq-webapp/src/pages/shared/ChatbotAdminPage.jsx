@@ -44,7 +44,7 @@ export default function ChatbotAdminPage() {
 
   const loadAnalytics = () => {
     // GET /api/chatbot-admin/analytics
-    api.get('/api/chatbot-admin/analytics').then(r => setAnalytics(r.data)).catch(() => {}) => {})
+    api.get('/api/chatbot-admin/analytics').then(r => setAnalytics(r.data)).catch(() => {})
   }
 
   useEffect(() => { loadFAQs() }, [])
