@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react'
 import { clinicsApi } from '../../services/api'
 import styles from './ClinicManagementPage.module.css'
 
-const STATUS_BADGE = { active:'badge-green', inactive:'badge-gray', maintenance:'badge-warn' }
+const STATUS_BADGE = { open:'badge-green', closed:'badge-gray', maintenance:'badge-warn', active:'badge-green', inactive:'badge-gray' }
 const EMPTY_FORM = {
   name:'', address:'', city:'', province:'', contactNumber:'', email:'',
   operatingHours:'8:00 AM - 5:00 PM', maxQueueCapacity:60,
-  acceptsWalkIn:true, acceptsAppointment:true, status:'active',
+  acceptsWalkIn:true, acceptsAppointment:true, status:'open',
   facilityType:'City Health Center', region:'NCR',
 }
 
@@ -58,14 +58,14 @@ export default function ClinicManagementPage() {
   }
 
   const filtered = clinics.filter(c => {
-    const matchStatus = statusFilter==='all' || c.status===statusFilter
+    const matchStatus = statusFilter==='all' || c.status===statusFilter || (statusFilter==='open' && c.status==='active')
     const q = search.toLowerCase()
     const matchSearch = !q || c.name?.toLowerCase().includes(q) || c.city?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q)
     return matchStatus && matchSearch
   })
 
-  const totalActive   = clinics.filter(c=>c.status==='active').length
-  const totalInactive = clinics.filter(c=>c.status!=='active').length
+  const totalActive   = clinics.filter(c=>c.status==='open' || c.status==='active').length
+  const totalInactive = clinics.filter(c=>c.status!=='open' && c.status!=='active').length
 
   const F = (field, label, type='text', opts=null) => (
     <div className="form-group">
@@ -111,8 +111,8 @@ export default function ClinicManagementPage() {
         </div>
         <select className="dropdown-select" value={statusFilter} onChange={e=>setStatus(e.target.value)}>
           <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          <option value="open">Open</option>
+          <option value="closed">Closed</option>
           <option value="maintenance">Maintenance</option>
         </select>
         <button className="btn btn-outline btn-sm" onClick={load}>
