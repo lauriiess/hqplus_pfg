@@ -228,15 +228,31 @@ async function main() {
 
   // ── FAQs ───────────────────────────────────────────────────────────────────
   await FAQ.create([
-    { question: 'How do I join a queue?',             answer: 'Go to the Clinic Directory, select a clinic, and tap "Join Queue". You will receive a queue number and estimated wait time.', category: 'Queue',        isActive: true },
-    { question: 'How do I book an appointment?',      answer: 'Go to the Clinic Directory, choose a clinic, tap "Book Appointment", select your preferred date and time slot, then confirm.',  category: 'Appointments', isActive: true },
-    { question: 'Can I cancel my appointment?',       answer: 'Yes. Go to My Appointments, find the appointment, and tap "Cancel". Please cancel at least 1 hour before your schedule.',      category: 'Appointments', isActive: true },
-    { question: 'How do I get my queue number?',      answer: 'Your queue number is shown immediately after you join the queue. You will also receive a notification with your number.',       category: 'Queue',        isActive: true },
-    { question: 'What is the OTP for?',               answer: 'The OTP (One-Time Password) is used to verify your phone number during registration. It expires in 10 minutes.',               category: 'Account',      isActive: true },
-    { question: 'How do I update my profile?',        answer: 'Go to Profile in the menu and tap "Edit Profile" to update your personal information.',                                        category: 'Account',      isActive: true },
-    { question: 'Can the app recommend a clinic?',    answer: 'Yes. On the home screen, tap "Get Recommendation". The app will suggest nearby clinics based on your location and needs.',     category: 'Clinic',       isActive: true },
-    { question: 'How do I know when it is my turn?',  answer: 'You will receive a push notification when your queue number is called. You can also check real-time status in the app.',      category: 'Queue',        isActive: true },
-  ]);
+    { question: 'How do I book an appointment?',
+      answer: 'You can book an appointment through the HealthQueue+ mobile app or by visiting our front desk during operating hours.',
+      category: 'Appointments', keywords: ['appointment','book','schedule','booking','reserve'], isActive: true },
+    { question: 'How long is the waiting time?',
+      answer: 'Current average wait time is approximately 18 minutes. You can check your real-time queue status on the display screen or the mobile app.',
+      category: 'Queue Information', keywords: ['wait','waiting','queue','how long','time'], isActive: true },
+    { question: 'What departments do you have?',
+      answer: 'We have General Consultation, Pre-natal Care, Child Immunization, Family Planning, TB-DOTS, Dental Services, and Wound Care.',
+      category: 'General Info', keywords: ['department','specialty','services','where','section'], isActive: true },
+    { question: 'What are your operating hours?',
+      answer: 'We are open Monday to Saturday, 8:00 AM to 5:00 PM. Closed on Sundays and public holidays.',
+      category: 'General Info', keywords: ['hours','open','schedule','time','operating','close'], isActive: true },
+    { question: 'Do you accept walk-in patients?',
+      answer: 'Yes! Walk-in patients are welcome. Please proceed to the reception area to get your queue number.',
+      category: 'Queue Information', keywords: ['walk-in','walk in','walkin','no appointment','drop in'], isActive: true },
+    { question: 'How do I use my OTP?',
+      answer: 'The OTP (One-Time Password) is sent to your registered mobile number. Enter it in the app within 10 minutes to verify your account.',
+      category: 'Account', keywords: ['otp','one time password','verify','verification','code'], isActive: true },
+    { question: 'How can I cancel my appointment?',
+      answer: 'You can cancel your appointment through the mobile app at least 2 hours before your scheduled time, or call the clinic directly.',
+      category: 'Appointments', keywords: ['cancel','cancellation','reschedule','remove appointment'], isActive: true },
+    { question: 'Is the service free?',
+      answer: 'Most basic health services are free for all residents. Some specialized services may have minimal fees. Please ask at the reception.',
+      category: 'General Info', keywords: ['free','cost','fee','price','charge','payment'], isActive: true },
+  
   console.log('FAQs created');
 
   // ── System Config (defaults) ──────────────────────────────────────────────
