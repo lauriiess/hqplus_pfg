@@ -105,7 +105,15 @@ async function seed() {
   for (const u of users) {
     await User.create(u);
   }
-  console.log(`✅ Created ${users.length} users`);
+  console.log(`\u2705 Created ${users.length} users`);
+
+  // Assign clinicId to facility_admin — use the first clinic
+  const firstClinic = createdClinics[0];
+  await User.findOneAndUpdate(
+    { email: 'facilityadmin@hqplus.com' },
+    { clinicId: firstClinic._id }
+  );
+  console.log(`\u2705 Assigned facility admin to clinic: ${firstClinic.name}`);
 
   // Verify passwords hashed correctly (catch double-hash bugs early)
   for (const u of users) {
