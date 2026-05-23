@@ -31,7 +31,7 @@ export default function SuperDashboard() {
   const [metrics, setMetrics] = useState({})
 
   useEffect(() => {
-    api.get('/api/dashboard/super').then(r => setMetrics(r.data)).catch(() => {})
+    api.get('/api/dashboard/super-admin').then(r => setMetrics(r.data)).catch(() => {})
   }, [])
 
   return (
