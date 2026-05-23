@@ -252,7 +252,7 @@ async function main() {
     { question: 'Is the service free?',
       answer: 'Most basic health services are free for all residents. Some specialized services may have minimal fees. Please ask at the reception.',
       category: 'General Info', keywords: ['free','cost','fee','price','charge','payment'], isActive: true },
-  
+  ]);
   console.log('FAQs created');
 
   // ── System Config (defaults) ──────────────────────────────────────────────
