@@ -5,7 +5,8 @@ enum QueueStatus { waiting, inProgress, completed, missed }
 enum PatientType { regular, priority }
 
 class QueueEntry {
-  final String  queueNumber;
+  final String  entryId;        // MongoDB _id — used for API cancel calls
+  final String  queueNumber;    // display ticket number e.g. "H-001"
   final QueueType queueType;
   final String  clinicId;
   final String  clinicName;
@@ -18,6 +19,7 @@ class QueueEntry {
   final QueueStatus status;
 
   const QueueEntry({
+    required this.entryId,
     required this.queueNumber,
     required this.queueType,
     required this.clinicId,
@@ -34,6 +36,7 @@ class QueueEntry {
   factory QueueEntry.fromJson(Map<String, dynamic> j) {
     final clinic = j['clinic'];
     return QueueEntry(
+      entryId:     j['_id']?.toString() ?? j['entryId']?.toString() ?? '',
       queueNumber: j['ticketNumber'] ?? j['queueNumber'] ?? 'Q-000',
       queueType:   (j['priority'] == true) ? QueueType.priority : QueueType.regular,
       clinicId:    clinic is Map ? (clinic['_id'] ?? '').toString() : (j['clinicId'] ?? '').toString(),
@@ -50,17 +53,21 @@ class QueueEntry {
 
   static QueueStatus _parseStatus(String s) {
     switch (s.toLowerCase()) {
+      case 'serving':
       case 'in_progress':
-      case 'inprogress':  return QueueStatus.inProgress;
-      case 'completed':   return QueueStatus.completed;
+      case 'inprogress':   return QueueStatus.inProgress;
+      case 'done':
+      case 'completed':    return QueueStatus.completed;
       case 'missed':
-      case 'cancelled':   return QueueStatus.missed;
-      default:             return QueueStatus.waiting;
+      case 'no_show':
+      case 'cancelled':    return QueueStatus.missed;
+      default:              return QueueStatus.waiting;
     }
   }
 }
 
 class QueueJoinResult {
+  final String entryId;        // MongoDB _id from server response
   final String clinicId;
   final String clinicName;
   final String serviceId;
@@ -73,6 +80,7 @@ class QueueJoinResult {
   final DateTime joinedAt;
 
   const QueueJoinResult({
+    required this.entryId,
     required this.clinicId,
     required this.clinicName,
     required this.serviceId,
