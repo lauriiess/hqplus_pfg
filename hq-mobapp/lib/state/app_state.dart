@@ -225,23 +225,26 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> leaveQueue(String queueNumber) async {
+    // Match by queueNumber (display ticket like "H-001")
     final i = _queues.indexWhere((q) => q.queueNumber == queueNumber);
     if (i == -1) return;
     final q = _queues[i];
 
-    // Remove immediately from local list so UI feels instant
+    // 1. Remove from local list immediately — UI feels instant
     _queues.removeAt(i);
     notifyListeners();
 
-    // Cancel on server — use MongoDB _id (entryId) for the API call
-    try {
-      if (q.entryId.isNotEmpty) {
+    // 2. Cancel on server using MongoDB _id — wait for it to complete
+    if (q.entryId.isNotEmpty) {
+      try {
         await ApiService.cancelQueue(q.entryId);
+      } catch (_) {
+        // cancel failed — do nothing, local state already removed it
       }
-    } catch (_) {
-      // Silently re-sync if cancel fails
-      await fetchQueueStatus();
     }
+
+    // 3. Re-fetch from server after cancel completes to confirm it's gone
+    await fetchQueueStatus();
   }
 
   // ── Chat ──────────────────────────────────────────────────────────────────
