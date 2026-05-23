@@ -47,7 +47,7 @@ const bookAppointment = async (req, res) => {
       patientName:  patient.fullName || req.user.fullName,
       patientPhone: patient.phone   || req.user.phone || '',
       reason: reason || '', notes: notes || '',
-      status: 'scheduled',
+      status: 'pending',
     });
 
     return res.status(201).json({
@@ -56,7 +56,7 @@ const bookAppointment = async (req, res) => {
         _id: appointment._id, clinicName: clinic.name,
         clinicAddress: clinic.address, serviceName,
         appointmentDate: appointment.appointmentDate,
-        timeSlot, status: 'scheduled',
+        timeSlot, status: 'pending',
       },
     });
   } catch (err) {
