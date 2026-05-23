@@ -37,7 +37,7 @@ const getStaffMember = async (req, res) => {
 // POST /api/staff — create a new staff member + linked User account
 const createStaff = async (req, res) => {
   try {
-    const { fullName, email, phone, role, specialization, licenseNumber, clinicId } = req.body;
+    const { fullName, email, phone, gender, role, specialization, licenseNumber, clinicId } = req.body;
     if (!fullName || !email) return res.status(400).json({ message: 'Name and email are required.' });
 
     const targetClinic = clinicId || req.user.clinicId;
@@ -60,6 +60,7 @@ const createStaff = async (req, res) => {
 
     // Create Staff profile
     const staffDoc = await Staff.create({
+      gender:         gender || '',
       user:           userDoc._id,
       clinic:         targetClinic,
       fullName:       fullName.trim(),
@@ -85,7 +86,7 @@ const createStaff = async (req, res) => {
 // PUT /api/staff/:id
 const updateStaff = async (req, res) => {
   try {
-    const allowed = ['position', 'specialization', 'licenseNumber', 'schedule', 'isActive', 'phone', 'role', 'fullName', 'email'];
+    const allowed = ['position', 'specialization', 'licenseNumber', 'schedule', 'isActive', 'phone', 'role', 'fullName', 'email', 'gender'];
     const update = {};
     allowed.forEach((f) => { if (req.body[f] !== undefined) update[f] = req.body[f]; });
     const member = await Staff.findByIdAndUpdate(req.params.id, update, { new: true })
