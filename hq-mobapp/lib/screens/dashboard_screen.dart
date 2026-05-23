@@ -423,7 +423,7 @@ class _QueueTab extends StatelessWidget {
                   ...active.map((q) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _QueueDetailCard(entry: q,
-                          onLeave: () => context.read<AppState>().leaveQueue(q.queueNumber)))),
+                          onLeave: () async { await context.read<AppState>().leaveQueue(q.queueNumber); }))),
                 ],
                 if (past.isNotEmpty) ...[
                   const SizedBox(height: 8),
