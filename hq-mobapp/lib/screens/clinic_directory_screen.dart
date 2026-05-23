@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import '../core/theme/app_theme.dart';
 import '../core/routes/app_routes.dart';
-import '../models/clinic_model.dart';
+import '../core/theme/app_theme.dart';
 import '../services/api_service.dart';
 
 class ClinicDirectoryScreen extends StatefulWidget {
@@ -11,141 +10,153 @@ class ClinicDirectoryScreen extends StatefulWidget {
 }
 
 class _ClinicDirectoryScreenState extends State<ClinicDirectoryScreen> {
-  List<Clinic> _clinics = [];
-  List<Clinic> _filtered = [];
-  bool _loading = true;
-  String _search = '';
+  List<dynamic> _clinics = [];
+  List<dynamic> _filtered = [];
+  bool   _loading = true;
+  String? _error;
+  final _searchCtrl = TextEditingController();
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
+
+  @override
+  void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
   Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
     try {
       final data = await ApiService.getClinicDirectory();
-      final list = data.map((j) => Clinic.fromJson(j as Map<String, dynamic>)).toList();
-      setState(() { _clinics = list; _filtered = list; _loading = false; });
+      if (mounted) setState(() { _clinics = data; _filtered = data; _loading = false; });
     } catch (e) {
-      setState(() => _loading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error));
-      }
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
     }
   }
 
   void _filter(String q) {
     setState(() {
-      _search = q;
-      _filtered = _clinics.where((c) =>
-        c.name.toLowerCase().contains(q.toLowerCase()) ||
-        c.city.toLowerCase().contains(q.toLowerCase()) ||
-        c.services.any((s) => s.name.toLowerCase().contains(q.toLowerCase()))
-      ).toList();
+      _filtered = q.isEmpty
+        ? _clinics
+        : _clinics.where((c) =>
+            (c['name']?.toString().toLowerCase().contains(q.toLowerCase()) ?? false) ||
+            (c['city']?.toString().toLowerCase().contains(q.toLowerCase()) ?? false) ||
+            (c['facilityType']?.toString().toLowerCase().contains(q.toLowerCase()) ?? false)
+          ).toList();
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Clinic Directory')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              onChanged: _filter,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Search by clinic name or service...',
-              ),
+      appBar: AppBar(
+        title: const Text('Find a Clinic'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+      ),
+      body: Column(children: [
+        // Search bar
+        Container(
+          color: AppColors.primary,
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: TextField(
+            controller: _searchCtrl,
+            onChanged: _filter,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Search clinics or city...',
+              hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+              prefixIcon: const Icon(Icons.search, color: Colors.white70),
+              filled: true,
+              fillColor: Colors.white.withOpacity(0.2),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
           ),
-          Expanded(
-            child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _filtered.isEmpty
-                ? const Center(child: Text('No clinics found.', style: TextStyle(color: AppColors.textMuted)))
-                : RefreshIndicator(
-                    onRefresh: _load,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: _filtered.length,
-                      itemBuilder: (_, i) => _clinicCard(_filtered[i]),
-                    ),
+        ),
+
+        Expanded(child: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+            ? _ErrorView(message: _error!, onRetry: _load)
+            : _filtered.isEmpty
+              ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(Icons.location_off_outlined, size: 56, color: Colors.grey.shade300),
+                  const SizedBox(height: 12),
+                  const Text('No clinics found', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textMuted)),
+                ]))
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _filtered.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (_, i) {
+                      final c = _filtered[i] as Map<String, dynamic>;
+                      return GestureDetector(
+                        onTap: () => Navigator.pushNamed(context, AppRoutes.clinicDetail, arguments: c),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0,2))],
+                          ),
+                          child: Row(children: [
+                            Container(
+                              width: 48, height: 48,
+                              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(12)),
+                              child: const Icon(Icons.local_hospital_outlined, color: AppColors.primary, size: 26),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text(c['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textDark)),
+                              const SizedBox(height: 3),
+                              Text('${c['city'] ?? ''} · ${c['facilityType'] ?? 'Clinic'}',
+                                style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                              const SizedBox(height: 5),
+                              Row(children: [
+                                if (c['acceptsWalkIn'] == true) _Tag('Walk-in', const Color(0xFF0D9488)),
+                                if (c['acceptsAppointment'] == true) ...[
+                                  const SizedBox(width: 5),
+                                  _Tag('Appt', AppColors.primary),
+                                ],
+                              ]),
+                            ])),
+                            const Icon(Icons.chevron_right, color: AppColors.textMuted),
+                          ]),
+                        ),
+                      );
+                    },
                   ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _clinicCard(Clinic clinic) {
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, AppRoutes.clinicDetail, arguments: clinic),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 4))],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const CircleAvatar(backgroundColor: Color(0xFFE3F2FD), radius: 22,
-                  child: Icon(Icons.local_hospital_outlined, color: AppColors.primary, size: 22)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(clinic.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                    Text('${clinic.city} · ${clinic.operatingHours}',
-                      style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                  ]),
                 ),
-                _statusChip(clinic.activeQueueCount, clinic.estimatedWaitMinutes),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(children: [
-              if (clinic.acceptsWalkIn) _badge('Walk-in', Icons.directions_walk, AppColors.secondary),
-              if (clinic.acceptsWalkIn && clinic.acceptsAppointment) const SizedBox(width: 8),
-              if (clinic.acceptsAppointment) _badge('Appointment', Icons.calendar_today, AppColors.primary),
-            ]),
-            if (clinic.services.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(clinic.services.map((s) => s.name).take(3).join(' · '),
-                style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-            ],
-          ],
         ),
-      ),
-    );
-  }
-
-  Widget _statusChip(int count, int wait) {
-    final color = count < 10 ? AppColors.success : (count < 25 ? AppColors.warning : AppColors.error);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-      child: Text('~${wait}m wait', style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
-    );
-  }
-
-  Widget _badge(String label, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 12, color: color),
-        const SizedBox(width: 4),
-        Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
       ]),
     );
   }
+}
+
+class _Tag extends StatelessWidget {
+  final String label; final Color color;
+  const _Tag(this.label, this.color);
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(99)),
+    child: Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color)),
+  );
+}
+
+class _ErrorView extends StatelessWidget {
+  final String message; final VoidCallback onRetry;
+  const _ErrorView({required this.message, required this.onRetry});
+  @override
+  Widget build(BuildContext context) => Center(child: Padding(
+    padding: const EdgeInsets.all(32),
+    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+      Icon(Icons.cloud_off_outlined, size: 56, color: Colors.grey.shade300),
+      const SizedBox(height: 12),
+      Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+      const SizedBox(height: 20),
+      ElevatedButton.icon(onPressed: onRetry, icon: const Icon(Icons.refresh), label: const Text('Retry')),
+    ]),
+  ));
 }
