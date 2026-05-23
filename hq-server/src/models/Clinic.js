@@ -1,53 +1,35 @@
-/**
- * Clinic (Private Clinic) model
- * Replaces the old HealthCenter model — now focused on private clinics.
- */
 const mongoose = require('mongoose');
 
-const ServiceSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true, trim: true },
-    description: { type: String, default: '' },
-    durationMinutes: { type: Number, default: 30 },
-    isAvailable: { type: Boolean, default: true },
-  },
-  { _id: true }
-);
+const peakHourSchema = new mongoose.Schema({
+  hour: String,
+  load: { type: Number, default: 0 },
+}, { _id: false });
 
-const ClinicSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true, trim: true },
-    address: { type: String, required: true, trim: true },
-    city: { type: String, required: true, trim: true },
-    province: { type: String, default: '' },
-    contactNumber: { type: String, default: '' },
-    email: { type: String, default: '', lowercase: true, trim: true },
-    operatingHours: { type: String, default: '8:00 AM - 5:00 PM' },
-    // Geolocation for clinic recommendation
-    coordinates: {
-      lat: { type: Number, default: null },
-      lng: { type: Number, default: null },
-    },
-    // What type of visits the clinic accepts
-    acceptsWalkIn: { type: Boolean, default: true },
-    acceptsAppointment: { type: Boolean, default: true },
-    // Clinic capacity per day
-    maxQueueCapacity: { type: Number, default: 50 },
-    // Services offered
-    services: [ServiceSchema],
-    status: {
-      type: String,
-      enum: ['active', 'inactive', 'maintenance'],
-      default: 'active',
-    },
-    // Managed by which facility_admin user
-    managedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      default: null,
-    },
-  },
-  { timestamps: true }
-);
+const clinicSchema = new mongoose.Schema({
+  name:          { type: String, required: true, trim: true },
+  address:       { type: String, default: '' },
+  city:          { type: String, default: 'Quezon City' },
+  latitude:      { type: Number, default: 0 },
+  longitude:     { type: Number, default: 0 },
+  contactNumber: { type: String, default: '' },
+  status:        { type: String, enum: ['open','closed','busy'], default: 'open' },
 
-module.exports = mongoose.model('Clinic', ClinicSchema);
+  // Services offered at this branch
+  services:      [{ type: String }],
+
+  // Queue / wait stats (updated dynamically or seeded)
+  baseWaitTimePerPerson: { type: Number, default: 10 },
+  queueLength:           { type: Number, default: 0 },
+  distanceKm:            { type: Number, default: 0 },
+  currentWaitingTime:    { type: Number, default: 0 },
+
+  // Peak hour load data for AI forecasting
+  peakHours: [peakHourSchema],
+
+  // Facility admin assigned to this clinic
+  facilityAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+
+  isActive: { type: Boolean, default: true },
+}, { timestamps: true });
+
+module.exports = mongoose.model('Clinic', clinicSchema);
