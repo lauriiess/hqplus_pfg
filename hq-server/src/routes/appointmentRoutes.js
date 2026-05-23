@@ -1,6 +1,6 @@
 const express = require('express');
 const router  = express.Router();
-const {
+const { getMyAppointments, cancelMyAppointment,
   bookAppointment,
   getAppointments,
   getAppointment,
@@ -13,7 +13,7 @@ const {
   updateTimeSlot,
   deleteTimeSlot,
 } = require('../controllers/appointmentController');
-const { protect, authorizeRoles, patientOnly } = require('../middleware/auth');
+const { getMyAppointments, cancelMyAppointment, protect, authorizeRoles, patientOnly } = require('../middleware/auth');
 
 router.use(protect);
 
@@ -40,5 +40,9 @@ router.get('/:id', getAppointment);
 // ── Status updates ────────────────────────────────────────────────────────────
 router.put('/:id/status', authorizeRoles('staff', 'facility_admin', 'super_admin'), updateStatus);
 router.put('/:id/cancel', patientOnly, cancelAppointment);
+
+// Patient mobile routes
+router.get('/my',           protect, getMyAppointments);
+router.put('/:id/cancel',   protect, cancelMyAppointment);
 
 module.exports = router;
