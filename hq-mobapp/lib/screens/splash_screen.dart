@@ -6,7 +6,8 @@ import '../core/constants/app_colors.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
-  @override State<SplashScreen> createState() => _SplashScreenState();
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends State<SplashScreen> {
@@ -48,15 +49,18 @@ class _SplashScreenState extends State<SplashScreen> {
                   radius: 44,
                   backgroundColor: Colors.white,
                   child: Icon(Icons.local_hospital_rounded,
-                    color: AppColors.primary, size: 44),
+                      color: AppColors.primary, size: 44),
                 ),
                 SizedBox(height: 20),
                 Text('HealthQueue+',
-                  style: TextStyle(color: Colors.white, fontSize: 32,
-                    fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5)),
                 SizedBox(height: 8),
                 Text('AI-Driven Queue Management',
-                  style: TextStyle(color: Colors.white70, fontSize: 14)),
+                    style: TextStyle(color: Colors.white70, fontSize: 14)),
                 SizedBox(height: 40),
                 CircularProgressIndicator(color: Colors.white70, strokeWidth: 2),
               ],
