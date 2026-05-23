@@ -10,19 +10,19 @@ const PERMISSIONS = {
   'System Settings':     ['View Settings', 'Manage Settings'],
 }
 
-const ROLES   = ['Select role', 'super_admin', 'facility_admin', 'doctor', 'nurse', 'receptionist', 'data_analyst']
-const DEPTS   = ['Select department', 'General Consultation', 'Pre-natal Care', 'Child Immunization', 'Dental Services', 'TB-DOTS', 'Administration']
+const ROLES = ['Select role', 'super_admin', 'facility_admin', 'doctor', 'nurse', 'receptionist', 'data_analyst']
+const DEPTS = ['Select department', 'General Consultation', 'Pre-natal Care', 'Child Immunization', 'Dental Services', 'TB-DOTS', 'Administration']
 
 export default function UsersPage() {
   const [clinics, setClinics] = useState([])
-  const [form, setForm]       = useState({
+  const [form, setForm] = useState({
     firstName: '', lastName: '', email: '', phone: '',
     username: '', role: '', clinicId: '', department: '',
     permissions: [],
   })
-  const [saving,   setSaving]   = useState(false)
-  const [success,  setSuccess]  = useState(false)
-  const [error,    setError]    = useState('')
+  const [saving,  setSaving]  = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [error,   setError]   = useState('')
 
   useEffect(() => {
     api.get('/api/clinics').then(r => setClinics(r.data || [])).catch(() => {})
@@ -35,6 +35,7 @@ export default function UsersPage() {
         ? f.permissions.filter(p => p !== perm)
         : [...f.permissions, perm],
     }))
+  }
 
   const handleSubmit = async () => {
     if (!form.firstName || !form.email || !form.role || form.role === 'Select role') {
@@ -44,15 +45,15 @@ export default function UsersPage() {
     setSaving(true); setError(''); setSuccess(false)
     try {
       await api.post('/api/users/create', {
-        fullName: `${form.firstName} ${form.lastName}`,
-        email:    form.email,
-        phone:    form.phone,
-        username: form.username,
-        role:     form.role,
-        clinicId: form.clinicId,
-        department: form.department,
+        fullName:    `${form.firstName} ${form.lastName}`,
+        email:       form.email,
+        phone:       form.phone,
+        username:    form.username,
+        role:        form.role,
+        clinicId:    form.clinicId,
+        department:  form.department,
         permissions: form.permissions,
-        password: 'HealthQueue@2025',
+        password:    'HealthQueue@2025',
       })
       setSuccess(true)
       setForm({ firstName: '', lastName: '', email: '', phone: '', username: '', role: '', clinicId: '', department: '', permissions: [] })
@@ -61,12 +62,23 @@ export default function UsersPage() {
     } finally { setSaving(false) }
   }
 
+  const clearForm = () => setForm({
+    firstName: '', lastName: '', email: '', phone: '',
+    username: '', role: '', clinicId: '', department: '', permissions: [],
+  })
+
   return (
     <div className={styles.page}>
+
       {/* Header banner */}
       <div className={`card ${styles.banner}`}>
         <div className={styles.bannerIcon}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <line x1="19" y1="8" x2="19" y2="14"/>
+            <line x1="22" y1="11" x2="16" y2="11"/>
+          </svg>
         </div>
         <div>
           <div className={styles.bannerTitle}>Create New User</div>
@@ -95,7 +107,7 @@ export default function UsersPage() {
           </div>
           <div className="form-group">
             <label className="form-label">Phone Number</label>
-            <input className="form-input" placeholder="+1 234 567 8900" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+            <input className="form-input" placeholder="+63 9XX XXX XXXX" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
           </div>
         </div>
       </div>
@@ -118,7 +130,7 @@ export default function UsersPage() {
             <label className="form-label">Facility <span className={styles.req}>*</span></label>
             <select className="form-select" value={form.clinicId} onChange={e => setForm(f => ({ ...f, clinicId: e.target.value }))}>
               <option value="">Select facility</option>
-              {clinics.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+              {clinics.map(cl => <option key={cl._id} value={cl._id}>{cl.name}</option>)}
             </select>
           </div>
           <div className="form-group">
@@ -155,13 +167,14 @@ export default function UsersPage() {
 
       {/* Action buttons */}
       <div className={styles.actions}>
-        <button className="btn btn-outline" onClick={() => setForm({ firstName: '', lastName: '', email: '', phone: '', username: '', role: '', clinicId: '', department: '', permissions: [] })}>
+        <button className="btn btn-outline" onClick={clearForm}>
           Clear Form
         </button>
         <button className="btn btn-primary" onClick={handleSubmit} disabled={saving}>
           {saving ? 'Creating…' : 'Create User'}
         </button>
       </div>
+
     </div>
   )
 }
