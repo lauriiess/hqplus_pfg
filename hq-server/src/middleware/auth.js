@@ -13,7 +13,7 @@ const protect = async (req, res, next) => {
     }
 
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'hqplus_secret_2024');
 
     const user = await User.findById(decoded.id).select('-password');
     if (!user) {
