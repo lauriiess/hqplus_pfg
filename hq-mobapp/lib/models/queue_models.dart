@@ -44,7 +44,7 @@ class QueueEntry {
       serviceId:   j['serviceId'] ?? '',
       serviceName: j['serviceName'] ?? '',
       joinedAt:    j['joinedAt'] != null ? DateTime.tryParse(j['joinedAt']) ?? DateTime.now() : DateTime.now(),
-      position:    (j['position'] ?? j['queuePosition'] ?? 1) as int,
+      position:    (j['peopleAhead'] ?? j['position'] ?? j['queuePosition'] ?? 1) as int,
       totalAhead:  (j['totalAhead'] ?? j['peopleAhead'] ?? 0) as int,
       estimatedWaitTimeMinutes: (j['estimatedWaitTime'] ?? j['estimatedWaitTimeMinutes'] ?? 15) as int,
       status:      _parseStatus(j['status']?.toString() ?? ''),
