@@ -2,130 +2,168 @@ import { useState, useEffect } from 'react'
 import api from '../../services/api'
 import styles from './PatientsPage.module.css'
 
+const PER_PAGE = 10
+const TYPES    = ['All','Regular','Senior Citizen','PWD','Pregnant','Priority']
+const GENDERS  = ['Male','Female','Other']
+
 const typeBadge = (t) => {
-  const map = {
-    'Regular':        'badge-blue',
-    'Senior Citizen': 'badge-orange',
-    'PWD':            'badge-purple',
-    'Pregnant':       'badge-teal',
-    'Priority':       'badge-red',
-  }
-  return <span className={`badge ${map[t] || 'badge-gray'}`}>{t}</span>
+  const map = { Regular:'badge-blue','Senior Citizen':'badge-orange',PWD:'badge-purple',Pregnant:'badge-teal',Priority:'badge-red' }
+  return <span className={`badge ${map[t]||'badge-gray'}`}>{t||'Regular'}</span>
 }
+
+const EMPTY_FORM = { fullName:'', email:'', phone:'', dateOfBirth:'', gender:'Male', address:'', patientType:'Regular', philHealthNumber:'', emergencyContact:{ name:'', phone:'' } }
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [search, setSearch]     = useState('')
-  const [page, setPage]         = useState(1)
-  const [total, setTotal]       = useState(0)
-  const PER_PAGE = 10
+  const [loading,  setLoading]  = useState(true)
+  const [search,   setSearch]   = useState('')
+  const [typeFilter, setType]   = useState('All')
+  const [page,     setPage]     = useState(1)
+  const [modal,    setModal]    = useState(null)  // null | 'add' | 'view' | 'edit'
+  const [selected, setSelected] = useState(null)
+  const [form,     setForm]     = useState(EMPTY_FORM)
+  const [saving,   setSaving]   = useState(false)
+  const [toast,    setToast]    = useState('')
 
-  useEffect(() => {
+  const showToast = (m) => { setToast(m); setTimeout(() => setToast(''), 3000) }
+
+  const load = () => {
+    setLoading(true)
     api.get('/api/patients')
-      .then(r => { setPatients(r.data || []); setTotal(r.data?.length || 0) })
+      .then(r => setPatients(r.data || []))
       .catch(() => setPatients([]))
       .finally(() => setLoading(false))
-  }, [])
+  }
 
-  const filtered = patients.filter(p =>
-    !search ||
-    p.fullName?.toLowerCase().includes(search.toLowerCase()) ||
-    p.phone?.includes(search) ||
-    p.patientId?.toLowerCase().includes(search.toLowerCase())
-  )
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  useEffect(load, [])
+
+  const openAdd  = () => { setSelected(null); setForm(EMPTY_FORM); setModal('add') }
+  const openView = (p) => { setSelected(p); setModal('view') }
+  const openEdit = (p) => { setSelected(p); setForm({ ...EMPTY_FORM, ...p, emergencyContact: p.emergencyContact || { name:'', phone:'' } }); setModal('edit') }
+  const close    = () => { setModal(null); setSelected(null) }
+
+  const save = async () => {
+    if (!form.fullName) { showToast('Full name is required'); return }
+    setSaving(true)
+    try {
+      if (modal === 'edit') await api.put(`/api/patients/${selected._id}`, form)
+      else                  await api.post('/api/patients', form)
+      showToast(modal === 'edit' ? 'Patient updated' : 'Patient added successfully')
+      close(); load()
+    } catch (e) { showToast(e?.response?.data?.message || 'Failed to save patient') }
+    finally { setSaving(false) }
+  }
+
+  const deactivate = async (id) => {
+    if (!confirm('Deactivate this patient?')) return
+    await api.delete(`/api/patients/${id}`).catch(() => {})
+    showToast('Patient deactivated'); load()
+  }
+
+  const exportCSV = () => {
+    const rows = [['ID','Name','Type','Gender','Phone','Email','PhilHealth','Last Visit']]
+    filtered.forEach(p => rows.push([
+      p.patientId||p._id, p.fullName, p.patientType||'Regular',
+      p.gender||'', p.phone||'', p.email||'',
+      p.philHealthNumber||'', p.lastVisit ? new Date(p.lastVisit).toLocaleDateString() : ''
+    ]))
+    const csv  = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const a    = document.createElement('a')
+    a.href     = URL.createObjectURL(blob)
+    a.download = `patients_${new Date().toISOString().slice(0,10)}.csv`
+    a.click()
+    showToast('Exported to CSV')
+  }
+
+  const filtered   = patients.filter(p => {
+    const matchType = typeFilter === 'All' || p.patientType === typeFilter
+    const q = search.toLowerCase()
+    const matchSearch = !q || p.fullName?.toLowerCase().includes(q) || p.phone?.includes(q) || p.patientId?.toLowerCase().includes(q) || p.email?.toLowerCase().includes(q)
+    return matchType && matchSearch
+  })
   const pageCount  = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
+  const paginated  = filtered.slice((page-1)*PER_PAGE, page*PER_PAGE)
+
+  const F = (field, label, type='text', nested=null) => (
+    <div className="form-group">
+      <label className="form-label">{label}</label>
+      <input className="form-input" type={type}
+        value={nested ? (form[nested]?.[field]||'') : (form[field]||'')}
+        onChange={e => nested
+          ? setForm(f => ({ ...f, [nested]: { ...f[nested], [field]: e.target.value } }))
+          : setForm(f => ({ ...f, [field]: e.target.value }))
+        }
+      />
+    </div>
+  )
 
   return (
     <div className={styles.page}>
+      {toast && <div className={styles.toast}>{toast}</div>}
+
       <div className="card">
-        {/* Header */}
         <div className={styles.header}>
           <div>
             <div className={styles.title}>Patient Records</div>
-            <div className={styles.sub}>Manage patient information and medical records</div>
+            <div className={styles.sub}>{patients.length} total patients registered</div>
           </div>
-          <div className={styles.actions}>
-            <button className="btn btn-primary btn-sm">
+          <div style={{ display:'flex', gap:8 }}>
+            <button className="btn btn-outline btn-sm" onClick={exportCSV}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export CSV
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={openAdd}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add New Patient
+              Add Patient
             </button>
           </div>
         </div>
 
-        {/* Search + filter */}
         <div className={styles.toolbar}>
-          <div className="search-bar" style={{ flex: 1 }}>
+          <div className="search-bar" style={{ flex:1, maxWidth:320 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input
-              placeholder="Search by name, ID, or phone number..."
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1) }}
-            />
+            <input placeholder="Search name, phone, ID..." value={search} onChange={e=>{ setSearch(e.target.value); setPage(1) }} />
           </div>
-          <select className="dropdown-select">
-            <option>All Departments</option>
-            <option>General Consultation</option>
-            <option>Pediatrics</option>
-            <option>Wound Care</option>
+          <select className="dropdown-select" value={typeFilter} onChange={e=>{ setType(e.target.value); setPage(1) }}>
+            {TYPES.map(t=><option key={t}>{t}</option>)}
           </select>
-          <button className="btn btn-outline btn-sm">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            Export
+          <button className="btn btn-outline btn-sm" onClick={load}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            Refresh
           </button>
         </div>
 
-        {/* Table */}
-        <div className="table-wrap" style={{ borderRadius: 0, border: 'none', borderTop: '1px solid var(--border)' }}>
+        <div className="table-wrap" style={{ borderRadius:0, border:'none', borderTop:'1px solid var(--border)' }}>
           <table>
             <thead>
-              <tr>
-                <th>Patient ID</th>
-                <th>Name</th>
-                <th>Age / Gender</th>
-                <th>Contact</th>
-                <th>Department</th>
-                <th>Last Visit</th>
-                <th>Total Visits</th>
-                <th>Actions</th>
-              </tr>
+              <tr><th>Name</th><th>Type</th><th>Gender</th><th>Contact</th><th>PhilHealth #</th><th>Visits</th><th>Last Visit</th><th>Actions</th></tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>Loading patients…</td></tr>
-              ) : paginated.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32, color: 'var(--muted)' }}>No patients found.</td></tr>
-              ) : paginated.map((p, i) => (
+              {loading ? <tr><td colSpan={8} style={{ textAlign:'center', padding:32, color:'var(--muted)' }}>Loading…</td></tr>
+              : paginated.length === 0 ? <tr><td colSpan={8} style={{ textAlign:'center', padding:32, color:'var(--muted)' }}>No patients found</td></tr>
+              : paginated.map(p => (
                 <tr key={p._id}>
                   <td>
-                    <span style={{ color: 'var(--primary)', fontWeight: 600 }}>
-                      P-{String((page - 1) * PER_PAGE + i + 1).padStart(4, '0')}
-                    </span>
+                    <div style={{ fontWeight:600, fontSize:13 }}>{p.fullName}</div>
+                    <div style={{ fontSize:11, color:'var(--muted)' }}>{p.email}</div>
                   </td>
-                  <td style={{ fontWeight: 600 }}>{p.fullName}</td>
-                  <td style={{ color: 'var(--muted)' }}>
-                    {p.age ? `${p.age}y` : '—'} / <span style={{ color: p.gender === 'male' ? 'var(--primary)' : '#DB2777', fontWeight: 600 }}>{p.gender ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1) : '—'}</span>
-                  </td>
+                  <td>{typeBadge(p.patientType)}</td>
+                  <td style={{ fontSize:13 }}>{p.gender||'—'}</td>
+                  <td style={{ fontSize:13 }}>{p.phone||'—'}</td>
+                  <td style={{ fontSize:13 }}>{p.philHealthNumber||'—'}</td>
+                  <td style={{ fontSize:13 }}>{p.totalVisits||0}</td>
+                  <td style={{ fontSize:12, color:'var(--muted)' }}>{p.lastVisit ? new Date(p.lastVisit).toLocaleDateString() : '—'}</td>
                   <td>
-                    <div style={{ fontSize: 13 }}>{p.phone || '—'}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.email || ''}</div>
-                  </td>
-                  <td>{typeBadge(p.patientType || 'Regular')}</td>
-                  <td style={{ color: 'var(--muted)', fontSize: 12 }}>
-                    {p.updatedAt ? new Date(p.updatedAt).toLocaleDateString('en-CA') : '—'}
-                  </td>
-                  <td style={{ fontWeight: 700, textAlign: 'center' }}>{p.visitCount ?? 0}</td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button className="btn btn-icon btn-outline" title="View">
+                    <div style={{ display:'flex', gap:4 }}>
+                      <button className="btn btn-icon btn-outline" title="View" onClick={()=>openView(p)}>
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                       </button>
-                      <button className="btn btn-icon btn-outline" title="Edit">
+                      <button className="btn btn-icon btn-outline" title="Edit" onClick={()=>openEdit(p)}>
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                       </button>
-                      <button className="btn btn-icon btn-outline" title="More">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                      <button className="btn btn-icon" style={{ background:'var(--error-lt)', color:'var(--error)' }} title="Deactivate" onClick={()=>deactivate(p._id)}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
                       </button>
                     </div>
                   </td>
@@ -136,17 +174,92 @@ export default function PatientsPage() {
         </div>
 
         {/* Pagination */}
-        <div className="pagination">
-          <div>Showing {Math.min((page - 1) * PER_PAGE + 1, filtered.length)}–{Math.min(page * PER_PAGE, filtered.length)} of {filtered.length} patients</div>
-          <div className="page-btns">
-            <button className="page-btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</button>
-            {Array.from({ length: Math.min(pageCount, 5) }, (_, i) => i + 1).map(n => (
-              <button key={n} className={`page-btn ${n === page ? 'active' : ''}`} onClick={() => setPage(n)}>{n}</button>
-            ))}
-            <button className="page-btn" disabled={page === pageCount} onClick={() => setPage(p => p + 1)}>Next</button>
+        {pageCount > 1 && (
+          <div className={styles.pagination}>
+            <button className="btn btn-outline btn-sm" disabled={page===1} onClick={()=>setPage(p=>p-1)}>← Prev</button>
+            <span style={{ fontSize:13, color:'var(--muted)' }}>Page {page} of {pageCount}</span>
+            <button className="btn btn-outline btn-sm" disabled={page===pageCount} onClick={()=>setPage(p=>p+1)}>Next →</button>
+          </div>
+        )}
+      </div>
+
+      {/* VIEW MODAL */}
+      {modal === 'view' && selected && (
+        <div className="modal-overlay" onClick={close}>
+          <div className="modal" style={{ maxWidth:480 }} onClick={e=>e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title">Patient Profile</div>
+              <button className="modal-close" onClick={close}>×</button>
+            </div>
+            <div className="modal-body">
+              <ProfileRow label="Full Name"    value={selected.fullName} />
+              <ProfileRow label="Type"         value={selected.patientType||'Regular'} />
+              <ProfileRow label="Gender"       value={selected.gender||'—'} />
+              <ProfileRow label="Date of Birth" value={selected.dateOfBirth ? new Date(selected.dateOfBirth).toLocaleDateString() : '—'} />
+              <ProfileRow label="Phone"        value={selected.phone||'—'} />
+              <ProfileRow label="Email"        value={selected.email||'—'} />
+              <ProfileRow label="Address"      value={selected.address||'—'} />
+              <ProfileRow label="PhilHealth #" value={selected.philHealthNumber||'—'} />
+              <ProfileRow label="Blood Type"   value={selected.bloodType||'—'} />
+              <ProfileRow label="Allergies"    value={selected.allergies?.join(', ')||'None'} />
+              <ProfileRow label="Emergency Contact" value={selected.emergencyContact?.name ? `${selected.emergencyContact.name} — ${selected.emergencyContact.phone}` : '—'} />
+              <ProfileRow label="Total Visits" value={selected.totalVisits||0} />
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={close}>Close</button>
+              <button className="btn btn-primary" onClick={()=>{ close(); setTimeout(()=>openEdit(selected),50) }}>Edit</button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ADD / EDIT MODAL */}
+      {(modal === 'add' || modal === 'edit') && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&close()}>
+          <div className="modal" style={{ maxWidth:540 }}>
+            <div className="modal-header">
+              <div className="modal-title">{modal==='edit' ? 'Edit Patient' : 'Add New Patient'}</div>
+              <button className="modal-close" onClick={close}>×</button>
+            </div>
+            <div className="modal-body" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 16px' }}>
+              <div style={{ gridColumn:'1/-1' }}>{F('fullName','Full Name *')}</div>
+              {F('email','Email','email')}
+              {F('phone','Phone Number')}
+              {F('dateOfBirth','Date of Birth','date')}
+              <div className="form-group">
+                <label className="form-label">Gender</label>
+                <select className="form-select" value={form.gender} onChange={e=>setForm(f=>({...f,gender:e.target.value}))}>
+                  {GENDERS.map(g=><option key={g}>{g}</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Patient Type</label>
+                <select className="form-select" value={form.patientType} onChange={e=>setForm(f=>({...f,patientType:e.target.value}))}>
+                  {TYPES.filter(t=>t!=='All').map(t=><option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div style={{ gridColumn:'1/-1' }}>{F('address','Address')}</div>
+              {F('philHealthNumber','PhilHealth Number')}
+              {F('bloodType','Blood Type')}
+              {F('name','Emergency Contact Name','text','emergencyContact')}
+              {F('phone','Emergency Contact Phone','text','emergencyContact')}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={close}>Cancel</button>
+              <button className="btn btn-primary" onClick={save} disabled={saving}>{saving?'Saving…':modal==='edit'?'Save Changes':'Add Patient'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ProfileRow({ label, value }) {
+  return (
+    <div style={{ display:'flex', padding:'8px 0', borderBottom:'1px solid var(--border-lt)', gap:12 }}>
+      <div style={{ minWidth:140, fontSize:12, fontWeight:600, color:'var(--muted)' }}>{label}</div>
+      <div style={{ fontSize:13, color:'var(--text)' }}>{value}</div>
     </div>
   )
 }
