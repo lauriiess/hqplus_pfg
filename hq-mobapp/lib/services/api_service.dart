@@ -1,15 +1,14 @@
 import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../core/config/app_config.dart';
 
 class ApiService {
-  static String get baseUrl =>
-      dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:4000';
+  static String get baseUrl => AppConfig.baseUrl;
 
   static const _storage  = FlutterSecureStorage();
   static const _tokenKey = 'hq_jwt_token';
-  static const _timeout  = Duration(seconds: 15);
+  static final _timeout  = AppConfig.requestTimeout;
 
   // ── Token management ───────────────────────────────────────────────────────
   static Future<void>    saveToken(String token) => _storage.write(key: _tokenKey, value: token);
@@ -49,7 +48,7 @@ class ApiService {
       _uri('/api/auth/register'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'fullName': fullName, 'email': email, 'phone': phone, 'password': password}),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out. Check your network.'));
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out. Make sure your phone and PC are on the same WiFi.'));
     return _handleResponse(res) as Map<String, dynamic>;
   }
 
@@ -61,7 +60,7 @@ class ApiService {
       _uri('/api/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out. Check your network.'));
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out. Make sure your phone and PC are on the same WiFi.'));
     return _handleResponse(res) as Map<String, dynamic>;
   }
 
