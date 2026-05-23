@@ -112,7 +112,7 @@ export default function ServicesPage() {
                     <div key={i} className={styles.serviceItem}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
                       <span>{s.name || s}</span>
-                      <span className="badge badge-green" style={{marginLeft:'auto'}}>{s.isActive !== false ? 'Active' : 'Inactive'}</span>
+                      <span className="badge badge-green" style={{marginLeft:'auto'}}>Active</span>
                     </div>
                   ))}
                 </div>
