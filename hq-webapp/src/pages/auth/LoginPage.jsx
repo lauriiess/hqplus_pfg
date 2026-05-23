@@ -17,14 +17,6 @@ export default function LoginPage() {
   const { login } = useAuth()
   const navigate  = useNavigate()
 
-  const fillDemo = () => {
-    if (tab === 'facility') {
-      setEmail('facilityadmin@hqplus.com')
-      setPass('Admin@1234')
-    } else {
-      setEmail('superadmin@hqplus.com')
-      setPass('Admin@1234')
-    }
   }
 
   const handleSubmit = async (e) => {
@@ -111,15 +103,6 @@ export default function LoginPage() {
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
-
-        {/* Demo access */}
-        <div className={styles.demo}>
-          <span>Demo Access:</span>
-          <button type="button" className={styles.demoBtn} onClick={fillDemo}>
-            Click here to auto-fill {tab === 'facility' ? 'Facility Admin' : 'Super Admin'} credentials, then click Sign In.
-          </button>
-        </div>
-
         <div className={styles.footer}>© 2026 HealthQueue+. All rights reserved.</div>
       </div>
     </div>
