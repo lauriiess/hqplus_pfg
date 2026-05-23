@@ -163,7 +163,35 @@ function haversineDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-module.exports = {
+
+// GET /api/clinics/directory — public list for mobile app
+const getDirectory = async (req, res) => {
+  try {
+    const clinics = await require('../models/Clinic').find({ status: 'active' })
+      .select('name address city province contactNumber email operatingHours acceptsWalkIn acceptsAppointment maxQueueCapacity facilityType status')
+      .sort({ name: 1 });
+    return res.json(clinics);
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to fetch clinic directory.' });
+  }
+};
+
+// GET /api/clinics/recommend — filter by service/type for mobile
+const getRecommendations = async (req, res) => {
+  try {
+    const { service, type } = req.query;
+    const filter = { status: 'active' };
+    if (type) filter.facilityType = { $regex: type, $options: 'i' };
+    const clinics = await require('../models/Clinic').find(filter)
+      .select('name address city province contactNumber operatingHours acceptsWalkIn acceptsAppointment facilityType status')
+      .limit(20);
+    return res.json(clinics);
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to fetch recommendations.' });
+  }
+};
+
+module.exports = { getDirectory, getRecommendations,
   getClinics,
   getClinic,
   createClinic,
