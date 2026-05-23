@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { chatbotAdminApi } from '../../services/api'
+import api, { chatbotAdminApi } from '../../services/api'
 import styles from './ChatbotAdminPage.module.css'
 
 const CATEGORIES = ['General Info', 'Queue Information', 'Appointments', 'Account', 'Clinic']
@@ -44,9 +44,7 @@ export default function ChatbotAdminPage() {
 
   const loadAnalytics = () => {
     // GET /api/chatbot-admin/analytics
-    fetch('/api/chatbot-admin/analytics', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('hq_token')}` }
-    }).then(r => r.json()).then(setAnalytics).catch(() => {})
+    api.get('/api/chatbot-admin/analytics').then(r => setAnalytics(r.data)).catch(() => {}) => {})
   }
 
   useEffect(() => { loadFAQs() }, [])
