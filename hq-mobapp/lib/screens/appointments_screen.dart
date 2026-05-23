@@ -15,12 +15,24 @@ class _AppointmentsScreenState extends State<AppointmentsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
 
+  bool _fetched = false;
+
   @override
   void initState() {
     super.initState();
     _tab = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback(
         (_) => context.read<AppState>().fetchAppointments());
+  }
+
+  // Re-fetch every time this screen becomes visible (e.g. after booking)
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_fetched) {
+      context.read<AppState>().fetchAppointments();
+    }
+    _fetched = true;
   }
 
   @override void dispose() { _tab.dispose(); super.dispose(); }
