@@ -1,281 +1,155 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../core/config/app_config.dart';
+
+class ApiConfig {
+  // ✏️ Change to your PC's local IP when testing on a real device
+  // Run `ipconfig` on Windows → look for IPv4 Address under WiFi
+  static const String baseUrl = 'http://192.168.1.100:4000';
+  static const Duration timeout = Duration(seconds: 15);
+}
 
 class ApiService {
-  static String get baseUrl => AppConfig.baseUrl;
-
+  static String get baseUrl => ApiConfig.baseUrl;
   static const _storage  = FlutterSecureStorage();
   static const _tokenKey = 'hq_jwt_token';
-  static final _timeout  = AppConfig.requestTimeout;
 
-  // ── Token management ───────────────────────────────────────────────────────
-  static Future<void>    saveToken(String token) => _storage.write(key: _tokenKey, value: token);
-  static Future<String?> getToken()              => _storage.read(key: _tokenKey);
-  static Future<void>    deleteToken()           => _storage.delete(key: _tokenKey);
+  static Future<void>    saveToken(String t) => _storage.write(key: _tokenKey, value: t);
+  static Future<String?> getToken()          => _storage.read(key: _tokenKey);
+  static Future<void>    deleteToken()       => _storage.delete(key: _tokenKey);
 
-  // ── Headers ────────────────────────────────────────────────────────────────
   static Future<Map<String, String>> _authHeaders() async {
-    final token = await getToken();
-    return {
-      'Content-Type': 'application/json',
-      if (token != null) 'Authorization': 'Bearer $token',
-    };
+    final t = await getToken();
+    return {'Content-Type': 'application/json', if (t != null) 'Authorization': 'Bearer $t'};
   }
 
-  static Uri _uri(String path) => Uri.parse('$baseUrl$path');
+  static Uri _uri(String path) => Uri.parse('\${ApiConfig.baseUrl}$path');
 
-  static dynamic _handleResponse(http.Response res) {
+  static dynamic _parse(http.Response res) {
     final body = jsonDecode(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) return body;
-    throw ApiException(
-      (body is Map ? body['message'] : null) ?? 'Request failed (${res.statusCode})',
-    );
+    throw ApiException((body is Map ? body['message'] : null) ?? 'Error \${res.statusCode}');
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // AUTH
-  // ══════════════════════════════════════════════════════════════════════════
-
+  // ── AUTH ──────────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> register({
-    required String fullName,
-    required String email,
-    required String phone,
-    required String password,
+    required String fullName, required String email,
+    required String phone, required String password,
   }) async {
-    final res = await http.post(
-      _uri('/api/auth/register'),
+    final res = await http.post(_uri('/api/auth/register'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'fullName': fullName, 'email': email, 'phone': phone, 'password': password}),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out. Make sure your phone and PC are on the same WiFi.'));
-    return _handleResponse(res) as Map<String, dynamic>;
+    ).timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Connection timed out. Is the server running?'));
+    return _parse(res) as Map<String, dynamic>;
   }
 
   static Future<Map<String, dynamic>> login({
-    required String email,
-    required String password,
+    required String email, required String password,
   }) async {
-    final res = await http.post(
-      _uri('/api/auth/login'),
+    final res = await http.post(_uri('/api/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out. Make sure your phone and PC are on the same WiFi.'));
-    return _handleResponse(res) as Map<String, dynamic>;
+    ).timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Connection timed out.'));
+    return _parse(res) as Map<String, dynamic>;
   }
 
   static Future<Map<String, dynamic>> getMe() async {
-    final res = await http.get(
-      _uri('/api/auth/me'),
-      headers: await _authHeaders(),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    return _handleResponse(res) as Map<String, dynamic>;
+    final res = await http.get(_uri('/api/auth/me'), headers: await _authHeaders())
+      .timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Connection timed out.'));
+    return _parse(res) as Map<String, dynamic>;
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // CLINICS
-  // ══════════════════════════════════════════════════════════════════════════
-
-  static Future<List<dynamic>> getClinicDirectory() async {
-    final res = await http.get(
-      _uri('/api/clinics/directory'),
-      headers: await _authHeaders(),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    final data = _handleResponse(res);
-    return data is List ? data : [];
+  // ── CLINICS ───────────────────────────────────────────────────────────────
+  static Future<List<dynamic>> getClinics() async {
+    try {
+      final res = await http.get(_uri('/api/clinics'), headers: await _authHeaders())
+        .timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Timeout'));
+      final data = _parse(res);
+      return data is List ? data : (data['clinics'] ?? data['data'] ?? []);
+    } catch (_) { return []; }
   }
 
-  static Future<List<dynamic>> getRecommendations({
-    double? lat, double? lng, String? service, String? type,
-  }) async {
-    final params = <String, String>{};
-    if (lat     != null) params['lat']     = lat.toString();
-    if (lng     != null) params['lng']     = lng.toString();
-    if (service != null) params['service'] = service;
-    if (type    != null) params['type']    = type;
-    final uri = Uri.parse('$baseUrl/api/clinics/recommend').replace(queryParameters: params);
-    final res  = await http.get(uri, headers: await _authHeaders())
-        .timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    final data = _handleResponse(res);
-    return data is List ? data : [];
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // QUEUE
-  // ══════════════════════════════════════════════════════════════════════════
-
+  // ── QUEUE ─────────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> joinQueue({
-    required String clinicId,
-    required String serviceName,
-    String? serviceId,
-    String? notes,
+    required String clinicId, required String serviceName, String? notes, bool priority = false,
   }) async {
-    final res = await http.post(
-      _uri('/api/queues/join'),
+    final res = await http.post(_uri('/api/queues/join'),
       headers: await _authHeaders(),
-      body: jsonEncode({
-        'clinicId':    clinicId,
-        'serviceName': serviceName,
-        if (serviceId != null) 'serviceId': serviceId,
-        if (notes     != null) 'notes':     notes,
-      }),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    return _handleResponse(res) as Map<String, dynamic>;
+      body: jsonEncode({'clinicId': clinicId, 'serviceName': serviceName,
+        if (notes != null) 'notes': notes, 'priority': priority}),
+    ).timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Connection timed out.'));
+    return _parse(res) as Map<String, dynamic>;
   }
 
-  static Future<Map<String, dynamic>> getMyQueueStatus() async {
-    final res = await http.get(
-      _uri('/api/queues/my-status'),
-      headers: await _authHeaders(),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    return _handleResponse(res) as Map<String, dynamic>;
+  static Future<dynamic> getMyQueueStatus() async {
+    final res = await http.get(_uri('/api/queues/my-status'), headers: await _authHeaders())
+      .timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Timeout'));
+    return _parse(res);
   }
 
-  static Future<void> cancelQueueEntry(String entryId) async {
-    final res = await http.put(
-      _uri('/api/queues/$entryId/cancel'),
-      headers: await _authHeaders(),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    _handleResponse(res);
+  static Future<void> cancelQueue(String id) async {
+    final res = await http.put(_uri('/api/queues/$id/cancel'), headers: await _authHeaders())
+      .timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Timeout'));
+    _parse(res);
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // APPOINTMENTS
-  // ══════════════════════════════════════════════════════════════════════════
-
+  // ── APPOINTMENTS ──────────────────────────────────────────────────────────
   static Future<List<dynamic>> getMyAppointments() async {
-    final res = await http.get(
-      _uri('/api/appointments/my'),
-      headers: await _authHeaders(),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    final data = _handleResponse(res);
-    return data is List ? data : (data['appointments'] ?? []);
-  }
-
-  static Future<List<dynamic>> getAvailableSlots({
-    required String clinicId,
-    required String date,
-    String? serviceId,
-  }) async {
-    final params = <String, String>{'clinicId': clinicId, 'date': date};
-    if (serviceId != null) params['serviceId'] = serviceId;
-    final uri = Uri.parse('$baseUrl/api/appointments/timeslots').replace(queryParameters: params);
-    final res  = await http.get(uri, headers: await _authHeaders())
-        .timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    final data = _handleResponse(res);
-    return data is List ? data : [];
+    try {
+      final res = await http.get(_uri('/api/appointments/my'), headers: await _authHeaders())
+        .timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Timeout'));
+      final data = _parse(res);
+      return data is List ? data : [];
+    } catch (_) { return []; }
   }
 
   static Future<Map<String, dynamic>> bookAppointment({
-    required String clinicId,
-    required String serviceName,
-    String? serviceId,
-    required String appointmentDate,
-    required String timeSlot,
-    String? endTime,
-    String? reason,
+    required String clinicId, required String serviceName,
+    required String appointmentDate, required String timeSlot,
     String? notes,
   }) async {
-    final res = await http.post(
-      _uri('/api/appointments'),
+    final res = await http.post(_uri('/api/appointments'),
       headers: await _authHeaders(),
-      body: jsonEncode({
-        'clinicId':        clinicId,
-        'serviceName':     serviceName,
-        if (serviceId != null)  'serviceId':       serviceId,
-        'appointmentDate': appointmentDate,
-        'timeSlot':        timeSlot,
-        if (endTime  != null)   'endTime':  endTime,
-        if (reason   != null)   'reason':   reason,
-        if (notes    != null)   'notes':    notes,
-      }),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    return _handleResponse(res) as Map<String, dynamic>;
+      body: jsonEncode({'clinicId': clinicId, 'serviceName': serviceName,
+        'appointmentDate': appointmentDate, 'timeSlot': timeSlot,
+        if (notes != null) 'notes': notes}),
+    ).timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Connection timed out.'));
+    return _parse(res) as Map<String, dynamic>;
   }
 
   static Future<void> cancelAppointment(String id, {String? reason}) async {
-    final res = await http.put(
-      _uri('/api/appointments/$id/cancel'),
+    final res = await http.put(_uri('/api/appointments/$id/cancel'),
       headers: await _authHeaders(),
       body: jsonEncode({'reason': reason ?? 'Cancelled by patient'}),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    _handleResponse(res);
+    ).timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Timeout'));
+    _parse(res);
   }
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // NOTIFICATIONS
-  // ══════════════════════════════════════════════════════════════════════════
-
-  static Future<List<dynamic>> getNotifications() async {
-    final res = await http.get(
-      _uri('/api/notifications'),
-      headers: await _authHeaders(),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    final data = _handleResponse(res);
-    return data is List ? data : (data['notifications'] ?? []);
-  }
-
-  static Future<void> markNotificationRead(String id) async {
-    final res = await http.put(
-      _uri('/api/notifications/$id/read'),
-      headers: await _authHeaders(),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    _handleResponse(res);
-  }
-
-  static Future<void> markAllNotificationsRead() async {
-    final res = await http.put(
-      _uri('/api/notifications/read-all'),
-      headers: await _authHeaders(),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    _handleResponse(res);
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // CHATBOT
-  // ══════════════════════════════════════════════════════════════════════════
-
+  // ── CHATBOT ───────────────────────────────────────────────────────────────
   static Future<String> sendChatMessage(String message) async {
-    final res = await http.post(
-      _uri('/api/chatbot/message'),
-      headers: await _authHeaders(),
-      body: jsonEncode({'message': message}),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    final data = _handleResponse(res) as Map<String, dynamic>;
-    return data['response']?.toString() ??
-           (data['replies'] as List?)?.map((r) => r.toString()).join('\n') ??
-           'Sorry, I could not process your request.';
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // PATIENT PROFILE
-  // ══════════════════════════════════════════════════════════════════════════
-
-  static Future<Map<String, dynamic>> getMyPatientProfile() async {
     try {
-      final res = await http.get(
-        _uri('/api/patients/me'),
+      final res = await http.post(_uri('/api/chatbot/message'),
         headers: await _authHeaders(),
-      ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-      return _handleResponse(res) as Map<String, dynamic>;
+        body: jsonEncode({'message': message}),
+      ).timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Timeout'));
+      final data = _parse(res) as Map<String, dynamic>;
+      return data['response']?.toString() ?? 'I could not understand that.';
     } catch (_) {
-      return await getMe();
+      return 'Sorry, I am having trouble connecting. Please try again.';
     }
   }
 
-  static Future<Map<String, dynamic>> updateMyPatientProfile(Map<String, dynamic> data) async {
-    final res = await http.put(
-      _uri('/api/patients/me'),
-      headers: await _authHeaders(),
-      body: jsonEncode(data),
-    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
-    return _handleResponse(res) as Map<String, dynamic>;
+  // ── PROFILE ───────────────────────────────────────────────────────────────
+  static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
+    final res = await http.put(_uri('/api/patients/me'),
+      headers: await _authHeaders(), body: jsonEncode(data),
+    ).timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Timeout'));
+    return _parse(res) as Map<String, dynamic>;
   }
 }
 
 class ApiException implements Exception {
   final String message;
   const ApiException(this.message);
-  @override
-  String toString() => message;
+  @override String toString() => message;
 }
