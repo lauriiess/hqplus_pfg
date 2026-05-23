@@ -1120,7 +1120,7 @@ class _MoreApptsRow extends StatelessWidget {
 
 class _QueueDetailCard extends StatelessWidget {
   final QueueEntry entry;
-  final VoidCallback? onLeave;
+  final Future<void> Function()? onLeave;
   const _QueueDetailCard({required this.entry, required this.onLeave});
 
   Color get _color {
@@ -1185,7 +1185,7 @@ class _QueueDetailCard extends StatelessWidget {
                 actions: [
                   TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                   TextButton(
-                      onPressed: () { Navigator.pop(context); onLeave!(); },
+                      onPressed: () async { Navigator.pop(context); await onLeave!(); },
                       child: const Text('Leave', style: TextStyle(color: Colors.red))),
                 ],
               ),
