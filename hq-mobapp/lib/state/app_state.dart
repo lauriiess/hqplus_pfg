@@ -155,8 +155,11 @@ class AppState extends ChangeNotifier {
   }
 
   void addAppointment(Appointment a) {
+    // Optimistically add immediately so UI updates without waiting
     _appointments.add(a);
     notifyListeners();
+    // Then sync with server to get the real persisted record
+    fetchAppointments();
   }
 
   Future<void> cancelAppointment(String id) async {
@@ -188,18 +191,17 @@ class AppState extends ChangeNotifier {
   Future<void> fetchQueueStatus() async {
     try {
       final data = await ApiService.getMyQueueStatus();
-      if (data is Map && data['entry'] != null) {
-        final entry =
-            QueueEntry.fromJson(data['entry'] as Map<String, dynamic>);
-        _queues.clear();
-        _queues.add(entry);
-        notifyListeners();
+      _queues.clear(); // always clear first — server is the source of truth
+      if (data is Map) {
+        if (data['active'] == true && data['entry'] != null) {
+          _queues.add(QueueEntry.fromJson(data['entry'] as Map<String, dynamic>));
+        }
+        // if active == false, list stays empty — queue was cancelled/done
       } else if (data is List) {
-        _queues.clear();
         _queues.addAll(
             data.map((j) => QueueEntry.fromJson(j as Map<String, dynamic>)));
-        notifyListeners();
       }
+      notifyListeners();
     } catch (_) {}
   }
 
@@ -221,24 +223,23 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void leaveQueue(String queueNumber) {
+  Future<void> leaveQueue(String queueNumber) async {
     final i = _queues.indexWhere((q) => q.queueNumber == queueNumber);
     if (i == -1) return;
     final q = _queues[i];
-    _queues[i] = QueueEntry(
-      queueNumber: q.queueNumber,
-      queueType: q.queueType,
-      clinicId: q.clinicId,
-      clinicName: q.clinicName,
-      serviceId: q.serviceId,
-      serviceName: q.serviceName,
-      joinedAt: q.joinedAt,
-      position: q.position,
-      totalAhead: q.totalAhead,
-      estimatedWaitTimeMinutes: q.estimatedWaitTimeMinutes,
-      status: QueueStatus.missed,
-    );
+
+    // Remove immediately from local list so UI feels instant
+    _queues.removeAt(i);
     notifyListeners();
+
+    // Cancel on server using the queue entry id if available, else queueNumber
+    try {
+      final entryId = q.entryId ?? q.queueNumber;
+      await ApiService.cancelQueue(entryId);
+    } catch (_) {
+      // If cancel fails silently, re-fetch to sync with server truth
+      await fetchQueueStatus();
+    }
   }
 
   // ── Chat ──────────────────────────────────────────────────────────────────
