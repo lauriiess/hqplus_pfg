@@ -63,6 +63,7 @@ export const usersApi = {
 export const staffApi = {
   list:       (params)   => api.get('/api/staff', { params }),
   get:        (id)       => api.get(`/api/staff/${id}`),
+  create:     (data)     => api.post('/api/staff', data),
   update:     (id, data) => api.put(`/api/staff/${id}`, data),
   deactivate: (id)       => api.delete(`/api/staff/${id}`),
 }
@@ -71,6 +72,7 @@ export const staffApi = {
 export const patientsApi = {
   list:       (params)   => api.get('/api/patients', { params }),
   get:        (id)       => api.get(`/api/patients/${id}`),
+  create:     (data)     => api.post('/api/patients', data),
   update:     (id, data) => api.put(`/api/patients/${id}`, data),
   deactivate: (id)       => api.delete(`/api/patients/${id}`),
 }
@@ -127,7 +129,9 @@ export const systemConfigApi = {
 
 // ── Notifications ─────────────────────────────────────────────────────────────
 export const notificationsApi = {
-  list: () => api.get('/api/notifications'),
+  list:       ()   => api.get('/api/notifications'),
+  markRead:   (id) => api.put(`/api/notifications/${id}/read`),
+  markAllRead: ()  => api.put('/api/notifications/read-all'),
 }
 
 export default api
