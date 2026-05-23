@@ -1,73 +1,84 @@
 /**
- * Chatbot Controller — proxies to Rasa or provides fallback responses
- * Configure RASA_SERVER_URL in .env to connect to a running Rasa instance.
- * All conversations are logged to ChatLog for admin review.
+ * Chatbot Controller — patient-facing chatbot endpoint
+ * Proxies to Rasa if RASA_SERVER_URL is set, else uses keyword-based FAQ matching.
  */
-const ChatLog = require('../models/ChatLog');
+const axios   = require('axios');
 const FAQ     = require('../models/FAQ');
+const ChatLog = require('../models/ChatLog');
+
+const RASA_URL = process.env.RASA_SERVER_URL;
 
 // POST /api/chatbot/message
-const sendMessage = async (req, res) => {
-  try {
-    const { message, senderId } = req.body;
-    if (!message) return res.status(400).json({ message: 'Message is required.' });
-
-    const rasaUrl = process.env.RASA_SERVER_URL;
-    let reply = '';
-    let isFallback = true;
-
-    if (rasaUrl) {
-      try {
-        const response = await fetch(`${rasaUrl}/webhooks/rest/webhook`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sender: senderId || req.user?._id?.toString() || 'anon', message }),
-        });
-        const data = await response.json();
-        const replies = data.map((r) => ({ text: r.text || '', image: r.image || null }));
-        reply = replies.map((r) => r.text).join(' ');
-        isFallback = false;
-
-        // Log and return Rasa response
-        await ChatLog.create({ patient: req.user?._id || null, senderId: senderId || 'anon', message, reply, isFallback }).catch(() => {});
-        return res.json({ replies, fallback: false });
-      } catch (rasaErr) {
-        console.warn('Rasa unavailable, using fallback:', rasaErr.message);
-      }
-    }
-
-    // Check FAQ database first
-    const faqs = await FAQ.find({ isActive: true });
-    const msg = message.toLowerCase();
-    const matched = faqs.find((f) => msg.includes(f.question.toLowerCase().split(' ')[0]));
-    if (matched) {
-      reply = matched.answer;
-      isFallback = false;
-    } else {
-      reply = getRuleBasedReply(msg);
-    }
-
-    await ChatLog.create({ patient: req.user?._id || null, senderId: senderId || 'anon', message, reply, isFallback }).catch(() => {});
-    return res.json({ replies: [{ text: reply }], fallback: isFallback });
-  } catch (err) {
-    return res.status(500).json({ message: 'Chatbot error. Please try again.' });
+// Body: { message, patientId? }
+const handleMessage = async (req, res) => {
+  const { message, patientId } = req.body;
+  if (!message || !message.trim()) {
+    return res.status(400).json({ message: 'Message is required.' });
   }
+
+  let response = null;
+
+  // ── Mode 1: Proxy to Rasa ─────────────────────────────────────────────────
+  if (RASA_URL) {
+    try {
+      const rasaRes = await axios.post(`${RASA_URL}/webhooks/rest/webhook`, {
+        sender:  patientId || 'anonymous',
+        message: message.trim(),
+      }, { timeout: 5000 });
+      const msgs = rasaRes.data;
+      if (Array.isArray(msgs) && msgs.length > 0) {
+        response = msgs.map(m => m.text).filter(Boolean).join('\n');
+      }
+    } catch (err) {
+      console.warn('Rasa unavailable, falling back to FAQ:', err.message);
+    }
+  }
+
+  // ── Mode 2: Keyword-based FAQ matching ────────────────────────────────────
+  if (!response) {
+    const msg  = message.toLowerCase().trim();
+    const faqs = await FAQ.find({ isActive: true });
+
+    let bestMatch = null;
+    let bestScore = 0;
+
+    for (const faq of faqs) {
+      let score = 0;
+
+      // Keyword match (weighted highest)
+      for (const kw of faq.keywords || []) {
+        if (msg.includes(kw.toLowerCase())) score += 3;
+      }
+
+      // Question word match (partial)
+      const qWords = faq.question.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+      for (const w of qWords) {
+        if (msg.includes(w)) score += 1;
+      }
+
+      if (score > bestScore) { bestScore = score; bestMatch = faq; }
+    }
+
+    if (bestMatch && bestScore >= 2) {
+      response = bestMatch.answer;
+      // Increment usage count
+      await FAQ.findByIdAndUpdate(bestMatch._id, { $inc: { usageCount: 1 } });
+    } else {
+      response = "Sorry, I didn't understand your question. Please visit our reception desk or call the clinic directly for assistance.";
+    }
+  }
+
+  // ── Log the interaction ───────────────────────────────────────────────────
+  try {
+    await ChatLog.create({
+      patient:  patientId || null,
+      message:  message.trim(),
+      response,
+      source:   RASA_URL ? 'rasa' : 'faq',
+    });
+  } catch (_) {}
+
+  return res.json({ response });
 };
 
-function getRuleBasedReply(msg) {
-  if (msg.includes('queue') || msg.includes('wait'))
-    return 'To join a queue, go to the Clinic Directory and tap "Join Queue". You will receive a queue number and estimated wait time.';
-  if (msg.includes('appointment') || msg.includes('book'))
-    return 'To book an appointment, go to the Clinic Directory, choose a clinic, then tap "Book Appointment" and select a time slot.';
-  if (msg.includes('cancel'))
-    return 'To cancel an appointment, go to My Appointments and tap "Cancel" on the appointment you want to remove.';
-  if (msg.includes('clinic') || msg.includes('recommend'))
-    return 'I can help recommend a clinic based on your location. Tap "Get Recommendation" in the Clinic Directory.';
-  if (msg.includes('otp') || msg.includes('verify') || msg.includes('code'))
-    return 'Please check your registered phone number for the OTP. It expires in 10 minutes.';
-  if (msg.includes('hello') || msg.includes('hi') || msg.includes('help'))
-    return 'Hi! I am the HealthQueue+ Assistant. I can help with queue management, appointment booking, and clinic information. What do you need?';
-  return 'I am not sure I understood that. Try asking about queues, appointments, clinic recommendations, or type "help".';
-}
-
-module.exports = { sendMessage };
+module.exports = { handleMessage };
