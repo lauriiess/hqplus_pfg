@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../core/constants/app_colors.dart';
 import '../core/routes/app_routes.dart';
 import '../state/app_state.dart';
@@ -9,19 +10,21 @@ import '../models/queue_models.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
-  @override State<DashboardScreen> createState() => _DashboardScreenState();
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  int navIndex = 0;
+  int _navIndex = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AppState>().fetchClinics();
-      context.read<AppState>().fetchAppointments();
-      context.read<AppState>().fetchQueueStatus();
+      final s = context.read<AppState>();
+      s.fetchClinics();
+      s.fetchAppointments();
+      s.fetchQueueStatus();
     });
   }
 
@@ -47,6 +50,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB),
+      body: IndexedStack(
+        index: _navIndex,
+        children: [
+          _HomeTab(
+            onJoinQueue: _goToJoinQueue,
+            onBookAppointment: _goToBookAppointment,
+          ),
+          const _QueueTab(),
+          const _AppointmentsTab(),
+          const _ProfileTab(),
+        ],
+      ),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _navIndex,
+        onTap: (i) => setState(() => _navIndex = i),
+        selectedItemColor: AppColors.primary,
+        unselectedItemColor: AppColors.textMuted,
+        showUnselectedLabels: true,
+        type: BottomNavigationBarType.fixed,
+        elevation: 8,
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.confirmation_number_outlined),
+            activeIcon: Icon(Icons.confirmation_number),
+            label: 'Queue',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_month_outlined),
+            activeIcon: Icon(Icons.calendar_month),
+            label: 'Appointments',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// HOME TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+class _HomeTab extends StatelessWidget {
+  final VoidCallback onJoinQueue;
+  final VoidCallback onBookAppointment;
+  const _HomeTab({required this.onJoinQueue, required this.onBookAppointment});
+
+  @override
+  Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final user     = appState.currentUser;
     final clinics  = appState.clinics;
@@ -54,198 +116,782 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final queues   = appState.activeQueues;
     final appts    = appState.upcomingAppointments;
     final nextAppt = appts.isNotEmpty ? appts.first : null;
+    final firstName = user?.fullName.split(' ').first ?? 'Patient';
 
-    final pages = [
-      _buildHome(appState, user?.fullName ?? 'Patient', clinics, selected, queues, nextAppt, appts.length),
-      const Center(child: Text('Queue', style: TextStyle(fontSize: 20))),
-      const Center(child: Text('Appointments', style: TextStyle(fontSize: 20))),
-      const Center(child: Text('Profile', style: TextStyle(fontSize: 20))),
-    ];
+    return SafeArea(
+      child: Column(
+        children: [
+          // ── Header ──────────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [AppColors.bgTop, AppColors.bgBottom],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(20),
+                bottomRight: Radius.circular(20),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Hi, $firstName 👋',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800)),
+                      const Text('How can we help you today?',
+                          style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.notifications_none_rounded,
+                      color: Colors.white, size: 26),
+                  onPressed: () =>
+                      Navigator.pushNamed(context, AppRoutes.notifications),
+                ),
+              ],
+            ),
+          ),
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F7FB),
-      body: IndexedStack(index: navIndex, children: [
-        pages[0],
-        _QueueTab(),
-        _AppointmentsTab(),
-        _ProfileTab(),
-      ]),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: navIndex,
-        onTap: (i) => setState(() => navIndex = i),
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: AppColors.textMuted,
-        showUnselectedLabels: true,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.confirmation_number_outlined), activeIcon: Icon(Icons.confirmation_number), label: 'Queue'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_month_outlined), activeIcon: Icon(Icons.calendar_month), label: 'Appointments'),
-          BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: 'Profile'),
+          // ── Scrollable body ─────────────────────────────────────────────
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                final s = context.read<AppState>();
+                await Future.wait([
+                  s.fetchClinics(),
+                  s.fetchAppointments(),
+                  s.fetchQueueStatus(),
+                ]);
+              },
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+                children: [
+                  // Clinic selector
+                  const Text('Select Clinic',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textDark)),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 110,
+                    child: clinics.isEmpty
+                        ? const Center(child: CircularProgressIndicator())
+                        : ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: clinics.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 10),
+                            itemBuilder: (_, i) => _ClinicCard(
+                              clinic: clinics[i],
+                              isSelected: selected?.id == clinics[i].id,
+                              onTap: () =>
+                                  context.read<AppState>().selectClinic(clinics[i]),
+                            ),
+                          ),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // Quick actions
+                  Row(children: [
+                    Expanded(
+                      child: _QuickActionCard(
+                        filled: true,
+                        icon: Icons.calendar_month_outlined,
+                        title: 'Book Appointment',
+                        onTap: onBookAppointment,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _QuickActionCard(
+                        filled: false,
+                        icon: Icons.confirmation_number_outlined,
+                        title: 'Get Queue Number',
+                        onTap: onJoinQueue,
+                      ),
+                    ),
+                  ]),
+
+                  const SizedBox(height: 18),
+
+                  // Selected clinic services
+                  if (selected != null) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Services Available',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.textDark)),
+                        Text('${selected.currentWaitingTime} min wait',
+                            style: const TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: selected.services
+                          .map((s) => _ServiceChip(name: s))
+                          .toList(),
+                    ),
+                    const SizedBox(height: 18),
+                  ],
+
+                  // Current status
+                  const Text('Current Status',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textDark)),
+                  const SizedBox(height: 10),
+
+                  if (queues.isEmpty && nextAppt == null)
+                    const _StatusEmptyCard()
+                  else ...[
+                    if (queues.isNotEmpty)
+                      ...queues.map((q) => Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _QueueCard(entry: q),
+                          )),
+                    if (nextAppt != null) _NextAppointmentCard(appt: nextAppt),
+                    if (appts.length > 1) ...[
+                      const SizedBox(height: 10),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => Navigator.pushNamed(
+                            context, AppRoutes.appointments),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Row(children: [
+                            const Icon(Icons.event_note_outlined,
+                                color: AppColors.primary),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'You have ${appts.length - 1} more upcoming appointment${appts.length - 1 == 1 ? "" : "s"}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.textDark),
+                              ),
+                            ),
+                            const Text('View all ›',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    color: AppColors.primary)),
+                          ]),
+                        ),
+                      ),
+                    ],
+                  ],
+
+                  const SizedBox(height: 18),
+
+                  // Chatbot button
+                  InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () => Navigator.pushNamed(context, AppRoutes.chatBot),
+                    child: Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                            colors: [AppColors.bgTop, AppColors.bgBottom]),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Row(children: [
+                        Icon(Icons.smart_toy_outlined,
+                            color: Colors.white, size: 28),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('AI Health Assistant',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15)),
+                              Text('Ask about queue, appointments, services',
+                                  style: TextStyle(
+                                      color: Colors.white70, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.arrow_forward_ios_rounded,
+                            color: Colors.white70, size: 16),
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildHome(AppState appState, String name, List<Clinic> clinics,
-      Clinic? selected, List<QueueEntry> queues, Appointment? nextAppt, int apptCount) {
-    return SafeArea(child: Column(children: [
-      _Header(name: name, onBellTap: () {}),
-      Expanded(child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+// ═══════════════════════════════════════════════════════════════════════════════
+// QUEUE TAB — inline, no Navigator push
+// ═══════════════════════════════════════════════════════════════════════════════
+class _QueueTab extends StatelessWidget {
+  const _QueueTab();
+  @override
+  Widget build(BuildContext context) {
+    final queues = context.watch<AppState>().queues;
+    final active = queues
+        .where((q) =>
+            q.status == QueueStatus.waiting ||
+            q.status == QueueStatus.inProgress)
+        .toList();
+    final past = queues
+        .where((q) =>
+            q.status == QueueStatus.completed ||
+            q.status == QueueStatus.missed)
+        .toList();
 
-          // ── Clinic Selector ─────────────────────────────────────────────
-          const Text('Select Clinic', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textDark)),
-          const SizedBox(height: 8),
-          SizedBox(height: 110, child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: clinics.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
-            itemBuilder: (_, i) => _ClinicCard(
-              clinic: clinics[i],
-              isSelected: selected?.id == clinics[i].id,
-              onTap: () => appState.selectClinic(clinics[i]),
-            ),
-          )),
-
-          const SizedBox(height: 18),
-
-          // ── Quick actions ─────────────────────────────────────────────
-          Row(children: [
-            Expanded(child: _QuickActionCard(
-              filled: true, icon: Icons.calendar_month_outlined,
-              title: 'Book Appointment', onTap: _goToBookAppointment)),
-            const SizedBox(width: 12),
-            Expanded(child: _QuickActionCard(
-              filled: false, icon: Icons.confirmation_number_outlined,
-              title: 'Get Queue Number', onTap: _goToJoinQueue)),
-          ]),
-
-          const SizedBox(height: 18),
-
-          // ── Selected clinic services ───────────────────────────────────
-          if (selected != null) ...[
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Services Available', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textDark)),
-              Text('${selected.currentWaitingTime} min wait',
-                style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 13)),
-            ]),
-            const SizedBox(height: 8),
-            Wrap(spacing: 8, runSpacing: 8,
-              children: selected.services.map((s) => _ServiceChip(name: s)).toList()),
-            const SizedBox(height: 18),
-          ],
-
-          // ── Current Status ────────────────────────────────────────────
-          const Text('Current Status', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textDark)),
-          const SizedBox(height: 10),
-
-          if (queues.isEmpty && nextAppt == null)
-            const _StatusEmptyCard()
-          else ...[
-            if (queues.isNotEmpty)
-              _SwipeQueuesSection(queues: queues,
-                onViewAll: () => Navigator.pushNamed(context, AppRoutes.queueMonitoring)),
-            if (queues.isNotEmpty && nextAppt != null) const SizedBox(height: 12),
-            if (nextAppt != null) ...[
-              _NextAppointmentCard(appt: nextAppt),
-              if (apptCount > 1) ...[
-                const SizedBox(height: 10),
-                InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () => Navigator.pushNamed(context, AppRoutes.appointments),
-                  child: Container(
-                    width: double.infinity, padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.border)),
-                    child: Row(children: [
-                      const Icon(Icons.event_note_outlined, color: AppColors.primary),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text('You have ${apptCount - 1} more upcoming appointment${apptCount - 1 == 1 ? "" : "s"}',
-                        style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.textDark))),
-                      const Text('View all ›', style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.primary)),
-                    ]),
-                  ),
-                ),
-              ],
-            ],
-          ],
-
-          const SizedBox(height: 18),
-          // ── Chatbot button ────────────────────────────────────────────
-          InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: () => Navigator.pushNamed(context, AppRoutes.chatBot),
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [AppColors.bgTop, AppColors.bgBottom]),
-                borderRadius: BorderRadius.circular(14)),
-              child: const Row(children: [
-                Icon(Icons.smart_toy_outlined, color: Colors.white, size: 28),
-                SizedBox(width: 12),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('AI Health Assistant', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15)),
-                  Text('Ask about queue, appointments, services', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                ])),
-                Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
-              ]),
-            ),
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        automaticallyImplyLeading: false,
+        title: const Text('My Queue',
+            style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textDark)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh, color: AppColors.textDark),
+            onPressed: () => context.read<AppState>().fetchQueueStatus(),
           ),
-        ]),
-      )),
-    ]));
+        ],
+      ),
+      body: queues.isEmpty
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.confirmation_number_outlined,
+                      size: 64, color: AppColors.textMuted),
+                  const SizedBox(height: 16),
+                  const Text('No Active Queue',
+                      style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textDark)),
+                  const SizedBox(height: 8),
+                  const Text('You have not joined any queue yet.',
+                      style: TextStyle(color: AppColors.textMuted)),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () =>
+                        Navigator.pushNamed(context, AppRoutes.joinQueue),
+                    style: ElevatedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12))),
+                    child: const Text('Get Queue Number'),
+                  ),
+                ],
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (active.isNotEmpty) ...[
+                  const Text('Active',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                          color: AppColors.textDark)),
+                  const SizedBox(height: 10),
+                  ...active.map((q) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _QueueDetailCard(
+                          entry: q,
+                          onLeave: () =>
+                              context.read<AppState>().leaveQueue(q.queueNumber),
+                        ),
+                      )),
+                ],
+                if (past.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text('History',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 16,
+                          color: AppColors.textDark)),
+                  const SizedBox(height: 10),
+                  ...past.map((q) => Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _QueueDetailCard(entry: q, onLeave: null),
+                      )),
+                ],
+              ],
+            ),
+    );
   }
 }
 
-// ── Clinic Card ───────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// APPOINTMENTS TAB — inline
+// ═══════════════════════════════════════════════════════════════════════════════
+class _AppointmentsTab extends StatelessWidget {
+  const _AppointmentsTab();
+  @override
+  Widget build(BuildContext context) {
+    final appState  = context.watch<AppState>();
+    final upcoming  = appState.upcomingAppointments;
+    final past      = appState.pastAppointments;
+    final fmt       = DateFormat('MMM d, yyyy');
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF6F7FB),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          automaticallyImplyLeading: false,
+          title: const Text('Appointments',
+              style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textDark)),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline, color: AppColors.primary),
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.bookAppointment),
+            ),
+          ],
+          bottom: TabBar(
+            labelColor: AppColors.primary,
+            unselectedLabelColor: AppColors.textMuted,
+            indicatorColor: AppColors.primary,
+            tabs: [
+              Tab(text: 'Upcoming (${upcoming.length})'),
+              Tab(text: 'Past (${past.length})'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            _ApptList(appointments: upcoming, fmt: fmt, canCancel: true),
+            _ApptList(appointments: past, fmt: fmt, canCancel: false),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ApptList extends StatelessWidget {
+  final List<Appointment> appointments;
+  final DateFormat fmt;
+  final bool canCancel;
+  const _ApptList(
+      {required this.appointments,
+      required this.fmt,
+      required this.canCancel});
+
+  @override
+  Widget build(BuildContext context) {
+    if (appointments.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.event_busy_outlined,
+                size: 60, color: AppColors.textMuted),
+            const SizedBox(height: 14),
+            const Text('No appointments',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textDark)),
+            if (canCancel) ...[
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () =>
+                    Navigator.pushNamed(context, AppRoutes.bookAppointment),
+                style: ElevatedButton.styleFrom(
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12))),
+                child: const Text('Book an Appointment'),
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: appointments.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (_, i) {
+        final a = appointments[i];
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2))
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(a.clinicName,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                        color: AppColors.textDark)),
+                const SizedBox(height: 4),
+                Text(a.serviceName,
+                    style: const TextStyle(
+                        color: AppColors.textMuted, fontSize: 13)),
+                const SizedBox(height: 4),
+                Row(children: [
+                  const Icon(Icons.calendar_today_outlined,
+                      size: 13, color: AppColors.textMuted),
+                  const SizedBox(width: 4),
+                  Text(fmt.format(a.date),
+                      style: const TextStyle(
+                          color: AppColors.textMuted, fontSize: 12)),
+                  const SizedBox(width: 10),
+                  const Icon(Icons.access_time_rounded,
+                      size: 13, color: AppColors.textMuted),
+                  const SizedBox(width: 4),
+                  Text(a.timeLabel,
+                      style: const TextStyle(
+                          color: AppColors.textMuted, fontSize: 12)),
+                ]),
+                if (canCancel &&
+                    (a.status == AppointmentStatus.scheduled ||
+                        a.status == AppointmentStatus.confirmed)) ...[
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        final ok = await showDialog<bool>(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Cancel Appointment'),
+                            content: const Text(
+                                'Are you sure you want to cancel?'),
+                            actions: [
+                              TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
+                                  child: const Text('Keep It')),
+                              TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, true),
+                                  child: const Text('Cancel',
+                                      style: TextStyle(color: Colors.red))),
+                            ],
+                          ),
+                        );
+                        if (ok == true && context.mounted) {
+                          context.read<AppState>().cancelAppointment(a.id);
+                        }
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Text('Cancel Appointment'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROFILE TAB — inline
+// ═══════════════════════════════════════════════════════════════════════════════
+class _ProfileTab extends StatefulWidget {
+  const _ProfileTab();
+  @override
+  State<_ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<_ProfileTab> {
+  bool _editing = false;
+  late TextEditingController _nameCtrl, _phoneCtrl, _ageCtrl, _philCtrl, _hmoCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final u = context.read<AppState>().currentUser;
+    _nameCtrl  = TextEditingController(text: u?.fullName ?? '');
+    _phoneCtrl = TextEditingController(text: u?.phone ?? '');
+    _ageCtrl   = TextEditingController(text: u?.age ?? '');
+    _philCtrl  = TextEditingController(text: u?.philHealthNumber ?? '');
+    _hmoCtrl   = TextEditingController(text: u?.hmoNumber ?? '');
+  }
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose(); _phoneCtrl.dispose(); _ageCtrl.dispose();
+    _philCtrl.dispose(); _hmoCtrl.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    context.read<AppState>().updateCurrentUserProfile(
+      fullName: _nameCtrl.text.trim(),
+      phone: _phoneCtrl.text.trim(),
+      age: _ageCtrl.text.trim(),
+      philHealthNumber: _philCtrl.text.trim(),
+      hmoNumber: _hmoCtrl.text.trim(),
+    );
+    setState(() => _editing = false);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Profile updated.')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final u = context.watch<AppState>().currentUser;
+    if (u == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final initials = u.fullName.trim().split(' ')
+        .where((w) => w.isNotEmpty)
+        .take(2)
+        .map((w) => w[0].toUpperCase())
+        .join();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        automaticallyImplyLeading: false,
+        title: const Text('My Profile',
+            style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.textDark)),
+        actions: [
+          if (!_editing)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, color: AppColors.primary),
+              onPressed: () => setState(() => _editing = true),
+            )
+          else
+            TextButton(
+              onPressed: _save,
+              child: const Text('Save',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800, color: AppColors.primary)),
+            ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            // Avatar
+            Container(
+              width: 80, height: 80,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                    colors: [AppColors.bgTop, AppColors.bgBottom]),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(initials,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(u.fullName,
+                style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textDark)),
+            Text(u.email,
+                style: const TextStyle(color: AppColors.textMuted)),
+            const SizedBox(height: 24),
+
+            // Info card
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.05), blurRadius: 8)
+                ],
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(children: [
+                _Field(label: 'Full Name',  ctrl: _nameCtrl,  icon: Icons.person_outline,               editing: _editing),
+                _Field(label: 'Phone',      ctrl: _phoneCtrl, icon: Icons.phone_outlined,                editing: _editing),
+                _Field(label: 'Age',        ctrl: _ageCtrl,   icon: Icons.cake_outlined,                 editing: _editing),
+                _Field(label: 'PhilHealth', ctrl: _philCtrl,  icon: Icons.health_and_safety_outlined,    editing: _editing),
+                _Field(label: 'HMO No.',    ctrl: _hmoCtrl,   icon: Icons.card_membership_outlined,      editing: _editing, isLast: true),
+              ]),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Stats
+            Row(children: [
+              _StatCard(
+                icon: Icons.calendar_month_outlined,
+                color: AppColors.primary,
+                label: 'Appointments',
+                value: '${context.watch<AppState>().appointments.length}',
+              ),
+              const SizedBox(width: 12),
+              _StatCard(
+                icon: Icons.confirmation_number_outlined,
+                color: AppColors.orange,
+                label: 'Queue Tickets',
+                value: '${context.watch<AppState>().queues.length}',
+              ),
+            ]),
+
+            const SizedBox(height: 24),
+
+            // Logout
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.logout_rounded, color: Colors.red),
+                label: const Text('Sign Out',
+                    style: TextStyle(
+                        color: Colors.red, fontWeight: FontWeight.w800)),
+                onPressed: () async {
+                  await context.read<AppState>().logout();
+                  if (!context.mounted) return;
+                  Navigator.pushReplacementNamed(context, AppRoutes.login);
+                },
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.red),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SHARED SMALL WIDGETS
+// ═══════════════════════════════════════════════════════════════════════════════
 class _ClinicCard extends StatelessWidget {
   final Clinic clinic;
   final bool isSelected;
   final VoidCallback onTap;
-  const _ClinicCard({required this.clinic, required this.isSelected, required this.onTap});
+  const _ClinicCard(
+      {required this.clinic, required this.isSelected, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 200,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primary : Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isSelected ? AppColors.primary : AppColors.border, width: 2),
-          boxShadow: isSelected ? [BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 8, offset: const Offset(0,4))] : [],
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: 200,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primary : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: isSelected ? AppColors.primary : AppColors.border,
+                width: 2),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                        color: AppColors.primary.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4))
+                  ]
+                : [],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Icon(Icons.local_hospital_rounded,
+                    color: isSelected ? Colors.white : AppColors.primary,
+                    size: 16),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: clinic.queueLength > 8
+                        ? Colors.red.withOpacity(0.15)
+                        : Colors.green.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text('${clinic.currentWaitingTime}m',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: clinic.queueLength > 8
+                              ? Colors.red
+                              : Colors.green)),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              Text(
+                clinic.name.replaceAll('Hi-Precision Diagnostics - ', ''),
+                style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    color: isSelected ? Colors.white : AppColors.textDark),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text('${clinic.distanceKm} km · ${clinic.queueLength} queued',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color:
+                          isSelected ? Colors.white70 : AppColors.textMuted)),
+            ],
+          ),
         ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.local_hospital_rounded, color: isSelected ? Colors.white : AppColors.primary, size: 18),
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: clinic.queueLength > 8 ? Colors.red.withOpacity(0.15) : Colors.green.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(99)),
-              child: Text('${clinic.currentWaitingTime}m wait',
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                  color: clinic.queueLength > 8 ? Colors.red : Colors.green)),
-            ),
-          ]),
-          const SizedBox(height: 8),
-          Text(clinic.name.replaceAll('Hi-Precision Diagnostics - ', ''),
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13,
-              color: isSelected ? Colors.white : AppColors.textDark),
-            maxLines: 2, overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 4),
-          Text('${clinic.distanceKm} km · ${clinic.queueLength} in queue',
-            style: TextStyle(fontSize: 11, color: isSelected ? Colors.white70 : AppColors.textMuted)),
-        ]),
-      ),
-    );
-  }
+      );
 }
 
 class _ServiceChip extends StatelessWidget {
@@ -253,32 +899,17 @@ class _ServiceChip extends StatelessWidget {
   const _ServiceChip({required this.name});
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-    decoration: BoxDecoration(
-      color: AppColors.primary.withOpacity(0.08),
-      borderRadius: BorderRadius.circular(99),
-      border: Border.all(color: AppColors.primary.withOpacity(0.2))),
-    child: Text(name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary)));
-}
-
-// ── Header ────────────────────────────────────────────────────────────────────
-class _Header extends StatelessWidget {
-  final String name;
-  final VoidCallback onBellTap;
-  const _Header({required this.name, required this.onBellTap});
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-    decoration: const BoxDecoration(
-      gradient: LinearGradient(colors: [AppColors.bgTop, AppColors.bgBottom]),
-      borderRadius: BorderRadius.only(bottomLeft: Radius.circular(20), bottomRight: Radius.circular(20))),
-    child: Row(children: [
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Hi, ${name.split(' ').first} 👋', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
-        const Text('How can we help you today?', style: TextStyle(color: Colors.white70, fontSize: 13)),
-      ])),
-      IconButton(icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 26), onPressed: onBellTap),
-    ]));
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(99),
+          border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        ),
+        child: Text(name,
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary)));
 }
 
 class _QuickActionCard extends StatelessWidget {
@@ -286,54 +917,68 @@ class _QuickActionCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final VoidCallback onTap;
-  const _QuickActionCard({required this.filled, required this.icon, required this.title, required this.onTap});
+  const _QuickActionCard(
+      {required this.filled,
+      required this.icon,
+      required this.title,
+      required this.onTap});
   @override
   Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: filled ? AppColors.primary : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: filled ? AppColors.primary : AppColors.border),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 8, offset: const Offset(0,2))]),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, color: filled ? Colors.white : AppColors.primary, size: 26),
-        const SizedBox(height: 8),
-        Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13,
-          color: filled ? Colors.white : AppColors.textDark)),
-      ])));
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: filled ? AppColors.primary : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: filled ? AppColors.primary : AppColors.border),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2))
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon,
+                  color: filled ? Colors.white : AppColors.primary, size: 26),
+              const SizedBox(height: 8),
+              Text(title,
+                  style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                      color: filled ? Colors.white : AppColors.textDark)),
+            ],
+          ),
+        ),
+      );
 }
 
 class _StatusEmptyCard extends StatelessWidget {
   const _StatusEmptyCard();
   @override
   Widget build(BuildContext context) => Container(
-    width: double.infinity, padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: AppColors.border)),
-    child: const Column(children: [
-      Icon(Icons.inbox_outlined, size: 40, color: AppColors.textMuted),
-      SizedBox(height: 10),
-      Text('No active queue or appointments', style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textDark)),
-      SizedBox(height: 4),
-      Text('Book an appointment or join a queue to get started.',
-        textAlign: TextAlign.center, style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-    ]));
-}
-
-class _SwipeQueuesSection extends StatelessWidget {
-  final List<QueueEntry> queues;
-  final VoidCallback onViewAll;
-  const _SwipeQueuesSection({required this.queues, required this.onViewAll});
-  @override
-  Widget build(BuildContext context) => Column(children: [
-    ...queues.map((q) => Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: _QueueCard(entry: q),
-    )),
-    TextButton(onPressed: onViewAll, child: const Text('View Queue Details ›')),
-  ]);
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: const Column(children: [
+          Icon(Icons.inbox_outlined, size: 40, color: AppColors.textMuted),
+          SizedBox(height: 10),
+          Text('No active queue or appointments',
+              style: TextStyle(
+                  fontWeight: FontWeight.w700, color: AppColors.textDark)),
+          SizedBox(height: 4),
+          Text('Book an appointment or join a queue to get started.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+        ]),
+      );
 }
 
 class _QueueCard extends StatelessWidget {
@@ -341,26 +986,58 @@ class _QueueCard extends StatelessWidget {
   const _QueueCard({required this.entry});
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: AppColors.border)),
-    child: Row(children: [
-      Container(width: 50, height: 50,
-        decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(10)),
-        child: Center(child: Text(entry.queueNumber,
-          style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w900, fontSize: 11)))),
-      const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(entry.clinicName, style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.textDark, fontSize: 13),
-          maxLines: 1, overflow: TextOverflow.ellipsis),
-        Text(entry.serviceName, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-      ])),
-      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        Text('~${entry.estimatedWaitTimeMinutes} min',
-          style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.primary)),
-        Text('${entry.position} ahead', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-      ]),
-    ]));
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(children: [
+          Container(
+            width: 50, height: 50,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Center(
+              child: Text(entry.queueNumber,
+                  style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 11)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(entry.clinicName,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textDark,
+                        fontSize: 13),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                Text(entry.serviceName,
+                    style: const TextStyle(
+                        color: AppColors.textMuted, fontSize: 12)),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('~${entry.estimatedWaitTimeMinutes} min',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, color: AppColors.primary)),
+              Text('${entry.position} ahead',
+                  style: const TextStyle(
+                      color: AppColors.textMuted, fontSize: 12)),
+            ],
+          ),
+        ]),
+      );
 }
 
 class _NextAppointmentCard extends StatelessWidget {
@@ -368,49 +1045,269 @@ class _NextAppointmentCard extends StatelessWidget {
   const _NextAppointmentCard({required this.appt});
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(14),
-    decoration: BoxDecoration(
-      gradient: const LinearGradient(colors: [Color(0xFFEFF6FF), Color(0xFFDBEAFE)]),
-      borderRadius: BorderRadius.circular(14),
-      border: Border.all(color: AppColors.primary.withOpacity(0.2))),
-    child: Row(children: [
-      const Icon(Icons.calendar_month_rounded, color: AppColors.primary, size: 28),
-      const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(appt.clinicName, style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.textDark),
-          maxLines: 1, overflow: TextOverflow.ellipsis),
-        Text(appt.serviceName, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
-        Text('${appt.date.day}/${appt.date.month}/${appt.date.year} · ${appt.timeLabel}',
-          style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 12)),
-      ])),
-    ]));
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+              colors: [Color(0xFFEFF6FF), Color(0xFFDBEAFE)]),
+          borderRadius: BorderRadius.circular(14),
+          border:
+              Border.all(color: AppColors.primary.withOpacity(0.2)),
+        ),
+        child: Row(children: [
+          const Icon(Icons.calendar_month_rounded,
+              color: AppColors.primary, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(appt.clinicName,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textDark),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis),
+                Text(appt.serviceName,
+                    style: const TextStyle(
+                        color: AppColors.textMuted, fontSize: 13)),
+                Text(
+                    '${appt.date.day}/${appt.date.month}/${appt.date.year} · ${appt.timeLabel}',
+                    style: const TextStyle(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12)),
+              ],
+            ),
+          ),
+        ]),
+      );
 }
 
-// ── Tab placeholders that redirect to proper screens ─────────────────────────
-class _QueueTab extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Navigator.pushNamed(context, AppRoutes.queueMonitoring);
-    });
-    return const SizedBox.shrink();
+class _QueueDetailCard extends StatelessWidget {
+  final QueueEntry entry;
+  final VoidCallback? onLeave;
+  const _QueueDetailCard({required this.entry, required this.onLeave});
+
+  Color get _color {
+    switch (entry.status) {
+      case QueueStatus.waiting:    return Colors.orange;
+      case QueueStatus.inProgress: return AppColors.primary;
+      case QueueStatus.completed:  return Colors.green;
+      case QueueStatus.missed:     return Colors.grey;
+    }
   }
+  String get _label {
+    switch (entry.status) {
+      case QueueStatus.waiting:    return 'Waiting';
+      case QueueStatus.inProgress: return 'In Progress';
+      case QueueStatus.completed:  return 'Completed';
+      case QueueStatus.missed:     return 'Missed';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2))
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(_label,
+                    style: TextStyle(
+                        color: _color,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12)),
+              ),
+              const Spacer(),
+              Text(entry.queueNumber,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                      color: AppColors.primary)),
+            ]),
+            const Divider(height: 20),
+            Text(entry.clinicName,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800, color: AppColors.textDark),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 4),
+            Text(entry.serviceName,
+                style: const TextStyle(color: AppColors.textMuted)),
+            const SizedBox(height: 12),
+            Row(children: [
+              _Stat2(label: 'Position', value: '${entry.position}'),
+              _Stat2(label: 'Ahead', value: '${entry.totalAhead}'),
+              _Stat2(label: 'Est. Wait', value: '~${entry.estimatedWaitTimeMinutes}m'),
+            ]),
+            if (onLeave != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Leave Queue'),
+                      content:
+                          const Text('Are you sure you want to leave?'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Cancel')),
+                        TextButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              onLeave!();
+                            },
+                            child: const Text('Leave',
+                                style: TextStyle(color: Colors.red))),
+                      ],
+                    ),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: const Text('Leave Queue'),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
 }
-class _AppointmentsTab extends StatelessWidget {
+
+class _Stat2 extends StatelessWidget {
+  final String label, value;
+  const _Stat2({required this.label, required this.value});
   @override
-  Widget build(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Navigator.pushNamed(context, AppRoutes.appointments);
-    });
-    return const SizedBox.shrink();
-  }
+  Widget build(BuildContext context) => Expanded(
+        child: Column(children: [
+          Text(value,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                  color: AppColors.primary)),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11, color: AppColors.textMuted)),
+        ]),
+      );
 }
-class _ProfileTab extends StatelessWidget {
+
+class _Field extends StatelessWidget {
+  final String label;
+  final TextEditingController ctrl;
+  final IconData icon;
+  final bool editing;
+  final bool isLast;
+  const _Field(
+      {required this.label,
+      required this.ctrl,
+      required this.icon,
+      required this.editing,
+      this.isLast = false});
   @override
-  Widget build(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Navigator.pushNamed(context, AppRoutes.profile);
-    });
-    return const SizedBox.shrink();
-  }
+  Widget build(BuildContext context) => Column(children: [
+        Row(children: [
+          Icon(icon, size: 18, color: AppColors.textMuted),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 90,
+            child: Text(label,
+                style: const TextStyle(
+                    color: AppColors.textMuted,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13)),
+          ),
+          Expanded(
+            child: editing
+                ? TextField(
+                    controller: ctrl,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 14),
+                    decoration: const InputDecoration(
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 6)),
+                  )
+                : Text(
+                    ctrl.text.isEmpty ? '—' : ctrl.text,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark),
+                  ),
+          ),
+        ]),
+        if (!isLast) const Divider(height: 20),
+      ]);
+}
+
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label, value;
+  const _StatCard(
+      {required this.icon,
+      required this.color,
+      required this.label,
+      required this.value});
+  @override
+  Widget build(BuildContext context) => Expanded(
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withOpacity(0.05), blurRadius: 8)
+            ],
+          ),
+          child: Row(children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(value,
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                        color: color)),
+                Text(label,
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.textMuted)),
+              ],
+            ),
+          ]),
+        ),
+      );
 }
