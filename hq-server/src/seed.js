@@ -82,18 +82,37 @@ async function seed() {
   await mongoose.connect(MONGO_URI);
   console.log('✅ MongoDB connected');
 
-  // Clear
+  // Clear ALL collections so no stale data remains
+  const QueueEntry   = require('./models/QueueEntry');
+  const Appointment  = require('./models/Appointment');
+  const Patient      = require('./models/Patient');
+  const Staff        = require('./models/Staff');
+
   await Promise.all([
-    User.deleteMany({}), Clinic.deleteMany({}),
-    Service.deleteMany({}), FAQ.deleteMany({}), SystemConfig.deleteMany({}),
+    User.deleteMany({}),
+    Clinic.deleteMany({}),
+    Service.deleteMany({}),
+    FAQ.deleteMany({}),
+    SystemConfig.deleteMany({}),
+    QueueEntry.deleteMany({}),
+    Appointment.deleteMany({}),
+    Patient.deleteMany({}),
+    Staff.deleteMany({}),
   ]);
-  console.log('🗑️  Cleared existing data');
+  console.log('🗑️  Cleared ALL existing data (users, clinics, queue, appointments, patients, staff)');
 
   // Users — plain text passwords; pre-save hook hashes once
   for (const u of users) {
     await User.create(u);
   }
   console.log(`✅ Created ${users.length} users`);
+
+  // Verify passwords hashed correctly (catch double-hash bugs early)
+  for (const u of users) {
+    const saved = await User.findOne({ email: u.email }).select('+password');
+    const ok = await require('bcryptjs').compare(u.password, saved.password);
+    console.log(`  ${ok ? '✓' : '✗ HASH MISMATCH!'} ${u.email} — password check: ${ok ? 'OK' : 'FAILED'}`);
+  }
 
   // Clinics
   const createdClinics = await Clinic.insertMany(clinics);
