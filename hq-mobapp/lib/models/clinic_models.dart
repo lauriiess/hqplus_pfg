@@ -17,6 +17,8 @@ class Clinic {
   final int queueLength;
   final double distanceKm;
   final int currentWaitingTime;
+  final int totalEstimatedMinutes; // travel + wait
+  final int travelMinutes;
   final String contactNumber;
   final String status;
   final List<PeakHour> peakHours;
@@ -32,26 +34,30 @@ class Clinic {
     required this.queueLength,
     required this.distanceKm,
     required this.currentWaitingTime,
+    this.totalEstimatedMinutes = 0,
+    this.travelMinutes = 0,
     required this.contactNumber,
     required this.status,
     required this.peakHours,
   });
 
   factory Clinic.fromJson(Map<String, dynamic> j) => Clinic(
-    id:                  j['_id']?.toString() ?? j['id']?.toString() ?? '',
-    name:                j['name'] ?? '',
-    address:             j['address'] ?? '',
-    latitude:            (j['latitude']  ?? 0).toDouble(),
-    longitude:           (j['longitude'] ?? 0).toDouble(),
-    services:            List<String>.from(j['services'] ?? []),
+    id:                    j['_id']?.toString() ?? j['id']?.toString() ?? '',
+    name:                  j['name'] ?? '',
+    address:               j['address'] ?? '',
+    latitude:              (j['latitude']  ?? 0).toDouble(),
+    longitude:             (j['longitude'] ?? 0).toDouble(),
+    services:              List<String>.from(j['services'] ?? []),
     baseWaitTimePerPerson: (j['baseWaitTimePerPerson'] ?? 10) as int,
-    queueLength:         (j['queueLength'] ?? 0) as int,
-    distanceKm:          (j['distanceKm'] ?? 0).toDouble(),
-    currentWaitingTime:  (j['currentWaitingTime'] ?? 0) as int,
-    contactNumber:       j['contactNumber'] ?? '',
-    status:              j['status'] ?? 'open',
-    peakHours:           (j['peakHours'] as List? ?? [])
-                           .map((h) => PeakHour.fromJson(h as Map<String, dynamic>))
-                           .toList(),
+    queueLength:           (j['queueLength'] ?? 0) as int,
+    distanceKm:            (j['distanceKm'] ?? 0).toDouble(),
+    currentWaitingTime:    (j['currentWaitingTime'] ?? 0) as int,
+    totalEstimatedMinutes: (j['totalEstimatedMinutes'] ?? 0) as int,
+    travelMinutes:         (j['travelMinutes'] ?? 0) as int,
+    contactNumber:         j['contactNumber'] ?? '',
+    status:                j['status'] ?? 'open',
+    peakHours:             (j['peakHours'] as List? ?? [])
+                              .map((h) => PeakHour.fromJson(h as Map<String, dynamic>))
+                              .toList(),
   );
 }
