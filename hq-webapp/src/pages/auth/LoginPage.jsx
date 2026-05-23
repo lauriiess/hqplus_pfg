@@ -119,13 +119,6 @@ export default function LoginPage() {
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
-
-        <div className={styles.hint}>
-          <strong>Demo credentials:</strong><br/>
-          {tab === 'facility'
-            ? 'facilityadmin@hqplus.com · Admin@1234'
-            : 'superadmin@hqplus.com · Admin@1234'}
-        </div>
         <div className={styles.footer}>© 2026 HealthQueue+. All rights reserved.</div>
       </div>
     </div>
