@@ -32,7 +32,8 @@ const StaffSchema = new mongoose.Schema(
     },
     fullName: { type: String, required: true, trim: true },
     email: { type: String, required: true, lowercase: true, trim: true },
-    phone: { type: String, default: '' },
+    gender:   { type: String, default: '' },
+  phone: { type: String, default: '' },
     // e.g. 'Doctor', 'Nurse', 'Receptionist', 'Specialist'
     position: { type: String, default: 'Receptionist' },
     specialization: { type: String, default: '' },
