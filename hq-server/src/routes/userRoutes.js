@@ -1,27 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const {
-  getUsers,
-  getUser,
-  createUser,
-  updateUser,
-  deactivateUser,
-  getMyPatientProfile,
-  updateMyPatientProfile,
-} = require('../controllers/userController');
-const { protect, authorizeRoles, adminOnly } = require('../middleware/auth');
+const { getUsers, getUser, createUser, updateUser, deactivateUser } = require('../controllers/userController');
+const { protect, adminOnly } = require('../middleware/auth');
 
 router.use(protect);
+router.use(adminOnly);
 
-// Patient profile routes
-router.get('/me/patient-profile',    authorizeRoles('patient'), getMyPatientProfile);
-router.put('/me/patient-profile',    authorizeRoles('patient'), updateMyPatientProfile);
-
-// Admin routes
-router.get('/',       adminOnly, getUsers);
-router.post('/',      adminOnly, createUser);
-router.get('/:id',    adminOnly, getUser);
-router.put('/:id',    adminOnly, updateUser);
-router.delete('/:id', adminOnly, deactivateUser);
+router.get('/',            getUsers);
+router.post('/',           createUser);
+router.post('/create',     createUser);   // alias used by webapp
+router.get('/:id',         getUser);
+router.put('/:id',         updateUser);
+router.delete('/:id',      deactivateUser);
 
 module.exports = router;
