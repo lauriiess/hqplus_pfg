@@ -103,6 +103,17 @@ const faqs = [
     answer: 'All 8 Hi-Precision Diagnostics branches in Quezon City are currently open: Congressional, Del Monte, Quezon Avenue, V. Luna, Banawe, Retiro, Congressional Extension, and East Avenue.', isActive: true },
 ];
 
+// ── System Config — key/value format to match SystemConfig model ──────────────
+const systemConfigs = [
+  { key: 'site_name',              value: 'HealthQueue+',  label: 'Site Name',              group: 'General' },
+  { key: 'maintenance_mode',       value: false,            label: 'Maintenance Mode',        group: 'General' },
+  { key: 'enable_notifications',   value: true,             label: 'Enable Notifications',    group: 'General' },
+  { key: 'max_queue_per_clinic',   value: 100,              label: 'Max Queue Per Clinic',    group: 'Queue' },
+  { key: 'default_wait_minutes',   value: 15,               label: 'Default Wait Time (min)', group: 'Queue' },
+  { key: 'chatbot_mode',           value: 'faq_fallback',   label: 'Chatbot Mode',            group: 'Chatbot' },
+  { key: 'support_email',          value: 'support@hqplus.com', label: 'Support Email',       group: 'General' },
+];
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   await mongoose.connect(process.env.MONGO_URI);
@@ -118,7 +129,7 @@ async function main() {
   await Promise.all(toDelete.map(M => M.deleteMany({})));
   console.log('Cleared existing data');
 
-  // Users (pre-save hook hashes passwords — plain text here)
+  // Users — plain text passwords; pre-save hook hashes them
   for (const u of users) {
     await User.create(u);
   }
@@ -132,14 +143,9 @@ async function main() {
   await FAQ.insertMany(faqs);
   console.log(`✅ Created ${faqs.length} FAQs`);
 
-  // System config
-  await SystemConfig.create({
-    key: 'general',
-    siteName: 'HealthQueue+',
-    maintenanceMode: false,
-    enableNotifications: true,
-  });
-  console.log('✅ System config initialized');
+  // System config — key/value pairs
+  await SystemConfig.insertMany(systemConfigs);
+  console.log(`✅ Created ${systemConfigs.length} system config entries`);
 
   console.log('\n🎉 Seed complete!\n');
   console.log('Demo accounts:');
