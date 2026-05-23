@@ -3,7 +3,7 @@ import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import styles from './QueuePage.module.css'
 
-const STATUS_BADGE = { waiting:'badge-warn', serving:'badge-blue', completed:'badge-green', skipped:'badge-gray', no_show:'badge-red' }
+const STATUS_BADGE = { waiting:'badge-warn', serving:'badge-blue', done:'badge-green', completed:'badge-green', skipped:'badge-gray', no_show:'badge-red', cancelled:'badge-red' }
 
 export default function QueuePage() {
   const { user }   = useAuth()
@@ -81,7 +81,7 @@ export default function QueuePage() {
 
   const waiting   = queue.filter(q=>q.status==='waiting').length
   const serving   = queue.filter(q=>q.status==='serving').length
-  const completed = queue.filter(q=>q.status==='completed').length
+  const completed = queue.filter(q=>q.status==='done'||q.status==='completed').length
 
   return (
     <div className={styles.page}>
@@ -102,7 +102,7 @@ export default function QueuePage() {
           <input placeholder="Search patient or queue #..." value={search} onChange={e=>setSearch(e.target.value)} />
         </div>
         <select className="dropdown-select" value={statusFilter} onChange={e=>setStatus(e.target.value)}>
-          {['All','waiting','serving','completed','skipped','no_show'].map(s=><option key={s} value={s}>{s==='All'?'All Status':s}</option>)}
+          {['All','waiting','serving','done','skipped','no_show','cancelled'].map(s=><option key={s} value={s}>{s==='All'?'All Status':s}</option>)}
         </select>
 
         {/* View toggle */}
