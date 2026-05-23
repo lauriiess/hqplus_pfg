@@ -253,7 +253,7 @@ class ApiService {
       Map<String, dynamic> data) async {
     final res = await http
         .put(
-          _uri('/api/patients/me'),
+          _uri('/api/users/profile'),
           headers: await _authHeaders(),
           body: jsonEncode(data),
         )
