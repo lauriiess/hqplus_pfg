@@ -67,9 +67,10 @@ export default function RoleManagementPage() {
     showToast(`"${r.name}" duplicated`)
   }
 
-  const remove = (id) => {
-    if (!confirm('Delete this custom role?')) return
-    setCustom(rs => rs.filter(r=>r._id!==id))
+  const remove = (e, id) => {
+    e.stopPropagation()
+    if (!window.confirm('Delete this custom role? This cannot be undone.')) return
+    setCustom(rs => rs.filter(r => r._id !== id))
     showToast('Role deleted')
   }
 
@@ -150,8 +151,9 @@ export default function RoleManagementPage() {
                 Duplicate
               </button>
               {role.type === 'custom' && (
-                <button className={`${styles.actBtn} ${styles.actDel}`} onClick={()=>remove(role._id)}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                <button className={`${styles.actBtn} ${styles.actDel}`} onClick={(e) => remove(e, role._id)}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{pointerEvents:'none'}}><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                  Delete
                 </button>
               )}
             </div>
