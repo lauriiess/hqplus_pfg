@@ -52,10 +52,11 @@ class Appointment {
       case 'arrived':     return AppointmentStatus.arrived;
       case 'serving':     return AppointmentStatus.serving;
       case 'completed':   return AppointmentStatus.completed;
+      case 'late':        return AppointmentStatus.arrived;   // treat late as arrived
       case 'no_show':     return AppointmentStatus.noShow;
       case 'cancelled':   return AppointmentStatus.cancelled;
       case 'rescheduled': return AppointmentStatus.rescheduled;
-      default:             return AppointmentStatus.pending;
+      default:            return AppointmentStatus.pending;
     }
   }
 
