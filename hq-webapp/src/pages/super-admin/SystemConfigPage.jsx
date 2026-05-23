@@ -60,6 +60,7 @@ export default function SystemConfigPage() {
       showToast('Configuration saved successfully')
     } catch { showToast('Saved locally (server sync optional)') }
     finally { setSaving(false) }
+  }
 
   const handleReset = () => { setConfigs(DEFAULTS); showToast('Reset to defaults') }
 
