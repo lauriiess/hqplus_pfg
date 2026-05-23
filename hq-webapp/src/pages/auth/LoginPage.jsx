@@ -19,11 +19,11 @@ export default function LoginPage() {
 
   const fillDemo = () => {
     if (tab === 'facility') {
-      setEmail('admin.delacruz@healthqueue.ph')
-      setPass('Admin@123')
+      setEmail('facilityadmin@hqplus.com')
+      setPass('Admin@1234')
     } else {
-      setEmail('superadmin@healthqueue.ph')
-      setPass('Admin@123')
+      setEmail('superadmin@hqplus.com')
+      setPass('Admin@1234')
     }
   }
 
