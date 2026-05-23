@@ -10,7 +10,7 @@ class MyApp extends StatelessWidget {
       title: 'HealthQueue+',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      initialRoute: AppRoutes.login,
+      initialRoute: AppRoutes.splash,
       routes: AppRoutes.routes,
     );
   }
