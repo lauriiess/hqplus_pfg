@@ -207,6 +207,7 @@ class AppState extends ChangeNotifier {
 
   void addQueueFromJoinResult(QueueJoinResult r) {
     final entry = QueueEntry(
+      entryId: r.entryId,
       queueNumber: r.queueNumber,
       queueType: r.queueType,
       clinicId: r.clinicId,
@@ -232,12 +233,13 @@ class AppState extends ChangeNotifier {
     _queues.removeAt(i);
     notifyListeners();
 
-    // Cancel on server using the queue entry id if available, else queueNumber
+    // Cancel on server — use MongoDB _id (entryId) for the API call
     try {
-      final entryId = q.entryId ?? q.queueNumber;
-      await ApiService.cancelQueue(entryId);
+      if (q.entryId.isNotEmpty) {
+        await ApiService.cancelQueue(q.entryId);
+      }
     } catch (_) {
-      // If cancel fails silently, re-fetch to sync with server truth
+      // Silently re-sync if cancel fails
       await fetchQueueStatus();
     }
   }
