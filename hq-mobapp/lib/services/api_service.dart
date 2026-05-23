@@ -3,14 +3,13 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiConfig {
-  // ✏️ Change to your PC's local IP when testing on a real device
-  // Run `ipconfig` on Windows → look for IPv4 Address under WiFi
+  // ✏️ Change this to your PC local IP before running on a real device
+  // Run: ipconfig → IPv4 Address (under WiFi adapter)
   static const String baseUrl = 'http://192.168.1.100:4000';
   static const Duration timeout = Duration(seconds: 15);
 }
 
 class ApiService {
-  static String get baseUrl => ApiConfig.baseUrl;
   static const _storage  = FlutterSecureStorage();
   static const _tokenKey = 'hq_jwt_token';
 
@@ -39,13 +38,11 @@ class ApiService {
     final res = await http.post(_uri('/api/auth/register'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'fullName': fullName, 'email': email, 'phone': phone, 'password': password}),
-    ).timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Connection timed out. Is the server running?'));
+    ).timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     return _parse(res) as Map<String, dynamic>;
   }
 
-  static Future<Map<String, dynamic>> login({
-    required String email, required String password,
-  }) async {
+  static Future<Map<String, dynamic>> login({required String email, required String password}) async {
     final res = await http.post(_uri('/api/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
@@ -63,15 +60,25 @@ class ApiService {
   static Future<List<dynamic>> getClinics() async {
     try {
       final res = await http.get(_uri('/api/clinics'), headers: await _authHeaders())
-        .timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Timeout'));
+        .timeout(ApiConfig.timeout);
       final data = _parse(res);
       return data is List ? data : (data['clinics'] ?? data['data'] ?? []);
     } catch (_) { return []; }
   }
 
+  static Future<List<dynamic>> getClinicDirectory() async {
+    try {
+      final res = await http.get(_uri('/api/clinics/directory'), headers: await _authHeaders())
+        .timeout(ApiConfig.timeout);
+      final data = _parse(res);
+      return data is List ? data : [];
+    } catch (_) { return []; }
+  }
+
   // ── QUEUE ─────────────────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> joinQueue({
-    required String clinicId, required String serviceName, String? notes, bool priority = false,
+    required String clinicId, required String serviceName,
+    String? notes, bool priority = false,
   }) async {
     final res = await http.post(_uri('/api/queues/join'),
       headers: await _authHeaders(),
@@ -82,9 +89,11 @@ class ApiService {
   }
 
   static Future<dynamic> getMyQueueStatus() async {
-    final res = await http.get(_uri('/api/queues/my-status'), headers: await _authHeaders())
-      .timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Timeout'));
-    return _parse(res);
+    try {
+      final res = await http.get(_uri('/api/queues/my-status'), headers: await _authHeaders())
+        .timeout(ApiConfig.timeout);
+      return _parse(res);
+    } catch (_) { return {}; }
   }
 
   static Future<void> cancelQueue(String id) async {
@@ -97,7 +106,7 @@ class ApiService {
   static Future<List<dynamic>> getMyAppointments() async {
     try {
       final res = await http.get(_uri('/api/appointments/my'), headers: await _authHeaders())
-        .timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Timeout'));
+        .timeout(ApiConfig.timeout);
       final data = _parse(res);
       return data is List ? data : [];
     } catch (_) { return []; }
@@ -105,8 +114,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> bookAppointment({
     required String clinicId, required String serviceName,
-    required String appointmentDate, required String timeSlot,
-    String? notes,
+    required String appointmentDate, required String timeSlot, String? notes,
   }) async {
     final res = await http.post(_uri('/api/appointments'),
       headers: await _authHeaders(),
@@ -125,13 +133,39 @@ class ApiService {
     _parse(res);
   }
 
+  // ── NOTIFICATIONS ─────────────────────────────────────────────────────────
+  static Future<List<dynamic>> getNotifications() async {
+    try {
+      final res = await http.get(_uri('/api/notifications'), headers: await _authHeaders())
+        .timeout(ApiConfig.timeout);
+      final data = _parse(res);
+      return data is List ? data : (data['notifications'] ?? []);
+    } catch (_) { return []; }
+  }
+
+  static Future<void> markNotificationRead(String id) async {
+    try {
+      final res = await http.put(_uri('/api/notifications/$id/read'), headers: await _authHeaders())
+        .timeout(ApiConfig.timeout);
+      _parse(res);
+    } catch (_) {}
+  }
+
+  static Future<void> markAllNotificationsRead() async {
+    try {
+      final res = await http.put(_uri('/api/notifications/read-all'), headers: await _authHeaders())
+        .timeout(ApiConfig.timeout);
+      _parse(res);
+    } catch (_) {}
+  }
+
   // ── CHATBOT ───────────────────────────────────────────────────────────────
   static Future<String> sendChatMessage(String message) async {
     try {
       final res = await http.post(_uri('/api/chatbot/message'),
         headers: await _authHeaders(),
         body: jsonEncode({'message': message}),
-      ).timeout(ApiConfig.timeout, onTimeout: () => throw ApiException('Timeout'));
+      ).timeout(ApiConfig.timeout);
       final data = _parse(res) as Map<String, dynamic>;
       return data['response']?.toString() ?? 'I could not understand that.';
     } catch (_) {
