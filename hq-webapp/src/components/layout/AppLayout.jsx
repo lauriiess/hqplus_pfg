@@ -62,7 +62,7 @@ export default function AppLayout({ role }) {
           {HQ_LOGO}
           <div className={styles.brandText}>
             <div className={styles.brandName}>HealthQueue+</div>
-            <div className={styles.brandRole}>{isSuper ? 'Super Admin' : 'Facility Admin'}</div>
+            <div className={styles.brandRole}>{isSuper ? 'System Administrator' : 'Facility Admin'}</div>
           </div>
         </div>
 
