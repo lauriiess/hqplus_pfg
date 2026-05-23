@@ -1,29 +1,21 @@
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
 const {
-  getClinics,
-  getClinic,
-  createClinic,
-  updateClinic,
-  deleteClinic,
-  getClinicDirectory,
-  recommendClinic,
+  getClinics, getClinicDirectory, getClinic,
+  createClinic, updateClinic, deleteClinic, getRecommendations,
 } = require('../controllers/clinicController');
-const { protect, authorizeRoles, superAdminOnly, adminOnly } = require('../middleware/auth');
+const { protect, authorizeRoles } = require('../middleware/auth');
 
+// Public (no auth needed for patient app directory)
+router.get('/directory',   getClinicDirectory);
+router.get('/recommend',   getRecommendations);
+
+// Protected
 router.use(protect);
-
-// GET /api/clinics/directory — public-facing clinic list with live stats
-router.get('/directory', getClinicDirectory);
-
-// GET /api/clinics/recommend — AI recommendation
-router.get('/recommend', recommendClinic);
-
-// CRUD (admin only)
-router.get('/', getClinics);
-router.post('/', superAdminOnly, createClinic);
+router.get('/',    getClinics);
+router.post('/',   authorizeRoles('super_admin', 'facility_admin'), createClinic);
 router.get('/:id', getClinic);
-router.put('/:id', adminOnly, updateClinic);
-router.delete('/:id', superAdminOnly, deleteClinic);
+router.put('/:id', authorizeRoles('super_admin', 'facility_admin'), updateClinic);
+router.delete('/:id', authorizeRoles('super_admin'), deleteClinic);
 
 module.exports = router;
