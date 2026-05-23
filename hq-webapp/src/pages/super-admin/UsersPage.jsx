@@ -35,7 +35,6 @@ export default function UsersPage() {
         ? f.permissions.filter(p => p !== perm)
         : [...f.permissions, perm],
     }))
-  }
 
   const handleSubmit = async () => {
     if (!form.firstName || !form.email || !form.role || form.role === 'Select role') {
