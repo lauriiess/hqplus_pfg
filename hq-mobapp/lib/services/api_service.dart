@@ -4,9 +4,12 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiService {
-  static String get baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:4000';
+  static String get baseUrl =>
+      dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:4000';
+
   static const _storage  = FlutterSecureStorage();
   static const _tokenKey = 'hq_jwt_token';
+  static const _timeout  = Duration(seconds: 15);
 
   // ── Token management ───────────────────────────────────────────────────────
   static Future<void>    saveToken(String token) => _storage.write(key: _tokenKey, value: token);
@@ -27,7 +30,9 @@ class ApiService {
   static dynamic _handleResponse(http.Response res) {
     final body = jsonDecode(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) return body;
-    throw ApiException((body as Map<String, dynamic>)['message'] ?? 'Request failed (${res.statusCode})');
+    throw ApiException(
+      (body is Map ? body['message'] : null) ?? 'Request failed (${res.statusCode})',
+    );
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -44,7 +49,7 @@ class ApiService {
       _uri('/api/auth/register'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'fullName': fullName, 'email': email, 'phone': phone, 'password': password}),
-    );
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out. Check your network.'));
     return _handleResponse(res) as Map<String, dynamic>;
   }
 
@@ -56,12 +61,15 @@ class ApiService {
       _uri('/api/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
-    );
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out. Check your network.'));
     return _handleResponse(res) as Map<String, dynamic>;
   }
 
   static Future<Map<String, dynamic>> getMe() async {
-    final res = await http.get(_uri('/api/auth/me'), headers: await _authHeaders());
+    final res = await http.get(
+      _uri('/api/auth/me'),
+      headers: await _authHeaders(),
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     return _handleResponse(res) as Map<String, dynamic>;
   }
 
@@ -70,7 +78,10 @@ class ApiService {
   // ══════════════════════════════════════════════════════════════════════════
 
   static Future<List<dynamic>> getClinicDirectory() async {
-    final res = await http.get(_uri('/api/clinics/directory'), headers: await _authHeaders());
+    final res = await http.get(
+      _uri('/api/clinics/directory'),
+      headers: await _authHeaders(),
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     final data = _handleResponse(res);
     return data is List ? data : [];
   }
@@ -84,7 +95,8 @@ class ApiService {
     if (service != null) params['service'] = service;
     if (type    != null) params['type']    = type;
     final uri = Uri.parse('$baseUrl/api/clinics/recommend').replace(queryParameters: params);
-    final res  = await http.get(uri, headers: await _authHeaders());
+    final res  = await http.get(uri, headers: await _authHeaders())
+        .timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     final data = _handleResponse(res);
     return data is List ? data : [];
   }
@@ -108,12 +120,15 @@ class ApiService {
         if (serviceId != null) 'serviceId': serviceId,
         if (notes     != null) 'notes':     notes,
       }),
-    );
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     return _handleResponse(res) as Map<String, dynamic>;
   }
 
   static Future<Map<String, dynamic>> getMyQueueStatus() async {
-    final res = await http.get(_uri('/api/queues/my-status'), headers: await _authHeaders());
+    final res = await http.get(
+      _uri('/api/queues/my-status'),
+      headers: await _authHeaders(),
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     return _handleResponse(res) as Map<String, dynamic>;
   }
 
@@ -121,7 +136,7 @@ class ApiService {
     final res = await http.put(
       _uri('/api/queues/$entryId/cancel'),
       headers: await _authHeaders(),
-    );
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     _handleResponse(res);
   }
 
@@ -130,7 +145,10 @@ class ApiService {
   // ══════════════════════════════════════════════════════════════════════════
 
   static Future<List<dynamic>> getMyAppointments() async {
-    final res  = await http.get(_uri('/api/appointments/my'), headers: await _authHeaders());
+    final res = await http.get(
+      _uri('/api/appointments/my'),
+      headers: await _authHeaders(),
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     final data = _handleResponse(res);
     return data is List ? data : (data['appointments'] ?? []);
   }
@@ -143,7 +161,8 @@ class ApiService {
     final params = <String, String>{'clinicId': clinicId, 'date': date};
     if (serviceId != null) params['serviceId'] = serviceId;
     final uri = Uri.parse('$baseUrl/api/appointments/timeslots').replace(queryParameters: params);
-    final res  = await http.get(uri, headers: await _authHeaders());
+    final res  = await http.get(uri, headers: await _authHeaders())
+        .timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     final data = _handleResponse(res);
     return data is List ? data : [];
   }
@@ -162,16 +181,16 @@ class ApiService {
       _uri('/api/appointments'),
       headers: await _authHeaders(),
       body: jsonEncode({
-        'clinicId':       clinicId,
-        'serviceName':    serviceName,
-        if (serviceId       != null) 'serviceId':       serviceId,
-        'appointmentDate':  appointmentDate,
-        'timeSlot':         timeSlot,
-        if (endTime  != null) 'endTime':  endTime,
-        if (reason   != null) 'reason':   reason,
-        if (notes    != null) 'notes':    notes,
+        'clinicId':        clinicId,
+        'serviceName':     serviceName,
+        if (serviceId != null)  'serviceId':       serviceId,
+        'appointmentDate': appointmentDate,
+        'timeSlot':        timeSlot,
+        if (endTime  != null)   'endTime':  endTime,
+        if (reason   != null)   'reason':   reason,
+        if (notes    != null)   'notes':    notes,
       }),
-    );
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     return _handleResponse(res) as Map<String, dynamic>;
   }
 
@@ -180,7 +199,7 @@ class ApiService {
       _uri('/api/appointments/$id/cancel'),
       headers: await _authHeaders(),
       body: jsonEncode({'reason': reason ?? 'Cancelled by patient'}),
-    );
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     _handleResponse(res);
   }
 
@@ -189,18 +208,27 @@ class ApiService {
   // ══════════════════════════════════════════════════════════════════════════
 
   static Future<List<dynamic>> getNotifications() async {
-    final res  = await http.get(_uri('/api/notifications'), headers: await _authHeaders());
+    final res = await http.get(
+      _uri('/api/notifications'),
+      headers: await _authHeaders(),
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     final data = _handleResponse(res);
     return data is List ? data : (data['notifications'] ?? []);
   }
 
   static Future<void> markNotificationRead(String id) async {
-    final res = await http.put(_uri('/api/notifications/$id/read'), headers: await _authHeaders());
+    final res = await http.put(
+      _uri('/api/notifications/$id/read'),
+      headers: await _authHeaders(),
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     _handleResponse(res);
   }
 
   static Future<void> markAllNotificationsRead() async {
-    final res = await http.put(_uri('/api/notifications/read-all'), headers: await _authHeaders());
+    final res = await http.put(
+      _uri('/api/notifications/read-all'),
+      headers: await _authHeaders(),
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     _handleResponse(res);
   }
 
@@ -208,15 +236,13 @@ class ApiService {
   // CHATBOT
   // ══════════════════════════════════════════════════════════════════════════
 
-  /// Returns the bot reply string (server returns { response: "..." })
   static Future<String> sendChatMessage(String message) async {
-    final res  = await http.post(
+    final res = await http.post(
       _uri('/api/chatbot/message'),
       headers: await _authHeaders(),
       body: jsonEncode({'message': message}),
-    );
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     final data = _handleResponse(res) as Map<String, dynamic>;
-    // Server returns { response: "..." }
     return data['response']?.toString() ??
            (data['replies'] as List?)?.map((r) => r.toString()).join('\n') ??
            'Sorry, I could not process your request.';
@@ -227,9 +253,11 @@ class ApiService {
   // ══════════════════════════════════════════════════════════════════════════
 
   static Future<Map<String, dynamic>> getMyPatientProfile() async {
-    // Falls back to /api/auth/me if patient profile endpoint not available
     try {
-      final res  = await http.get(_uri('/api/patients/me'), headers: await _authHeaders());
+      final res = await http.get(
+        _uri('/api/patients/me'),
+        headers: await _authHeaders(),
+      ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
       return _handleResponse(res) as Map<String, dynamic>;
     } catch (_) {
       return await getMe();
@@ -241,7 +269,7 @@ class ApiService {
       _uri('/api/patients/me'),
       headers: await _authHeaders(),
       body: jsonEncode(data),
-    );
+    ).timeout(_timeout, onTimeout: () => throw ApiException('Connection timed out.'));
     return _handleResponse(res) as Map<String, dynamic>;
   }
 }
