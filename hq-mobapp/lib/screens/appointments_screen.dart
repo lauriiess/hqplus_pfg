@@ -1,182 +1,193 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
+import '../core/constants/app_colors.dart';
 import '../core/routes/app_routes.dart';
-import '../core/theme/app_theme.dart';
-import '../services/api_service.dart';
+import '../state/app_state.dart';
+import '../models/appointment_models.dart';
 
 class AppointmentsScreen extends StatefulWidget {
   const AppointmentsScreen({super.key});
-  @override
-  State<AppointmentsScreen> createState() => _AppointmentsScreenState();
+  @override State<AppointmentsScreen> createState() => _AppointmentsScreenState();
 }
 
-class _AppointmentsScreenState extends State<AppointmentsScreen> with SingleTickerProviderStateMixin {
+class _AppointmentsScreenState extends State<AppointmentsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tab;
-  List<dynamic> _all = [];
-  bool _loading = true;
-  String? _error;
-
-  @override
-  void initState() { super.initState(); _tab = TabController(length: 3, vsync: this); _load(); }
-
-  @override
-  void dispose() { _tab.dispose(); super.dispose(); }
-
-  Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
-    try {
-      final data = await ApiService.getMyAppointments();
-      if (mounted) setState(() { _all = data; _loading = false; });
-    } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
-    }
+  @override void initState() {
+    super.initState();
+    _tab = TabController(length: 2, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback(
+        (_) => context.read<AppState>().fetchAppointments());
   }
-
-  Future<void> _cancel(dynamic appt) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Cancel Appointment'),
-        content: const Text('Are you sure you want to cancel this appointment?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
-          TextButton(onPressed: () => Navigator.pop(context, true),  child: const Text('Yes, Cancel', style: TextStyle(color: Colors.red))),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-    try {
-      await ApiService.cancelAppointment(appt['_id']?.toString() ?? '');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Appointment cancelled')));
-        _load();
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error));
-    }
-  }
-
-  List<dynamic> _filter(String status) {
-    if (status == 'upcoming') return _all.where((a) => ['pending','confirmed'].contains(a['status'])).toList();
-    if (status == 'past')     return _all.where((a) => ['completed','no_show'].contains(a['status'])).toList();
-    return _all.where((a) => a['status'] == 'cancelled').toList();
-  }
-
-  Color _statusColor(String? s) {
-    switch(s) {
-      case 'confirmed':  return AppColors.success;
-      case 'pending':    return AppColors.warning;
-      case 'completed':  return AppColors.primary;
-      case 'cancelled':  return Colors.red;
-      default:           return AppColors.textMuted;
-    }
-  }
+  @override void dispose() { _tab.dispose(); super.dispose(); }
 
   @override
   Widget build(BuildContext context) {
+    final appState = context.watch<AppState>();
+    final upcoming = appState.upcomingAppointments;
+    final past     = appState.pastAppointments;
+
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB),
       appBar: AppBar(
-        title: const Text('My Appointments'),
-        backgroundColor: AppColors.primary, foregroundColor: Colors.white,
-        actions: [
-          IconButton(icon: const Icon(Icons.add), onPressed: () => Navigator.pushNamed(context, AppRoutes.clinicDirectory)),
-        ],
+        backgroundColor: Colors.white, foregroundColor: AppColors.textDark,
+        title: const Text('Appointments', style: TextStyle(fontWeight: FontWeight.w900)),
+        actions: [IconButton(
+          icon: const Icon(Icons.add_circle_outline),
+          onPressed: () => Navigator.pushNamed(context, AppRoutes.bookAppointment))],
         bottom: TabBar(
           controller: _tab,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
-          indicatorColor: Colors.white,
-          tabs: const [Tab(text: 'Upcoming'), Tab(text: 'Past'), Tab(text: 'Cancelled')],
-        ),
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textMuted,
+          indicatorColor: AppColors.primary,
+          tabs: [
+            Tab(text: 'Upcoming (${upcoming.length})'),
+            Tab(text: 'Past (${past.length})'),
+          ]),
       ),
-      body: _loading
-        ? const Center(child: CircularProgressIndicator())
-        : _error != null
-          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Icons.error_outline, size: 48, color: Colors.grey),
-              const SizedBox(height: 12),
-              Text(_error!, textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              ElevatedButton(onPressed: _load, child: const Text('Retry')),
-            ]))
-          : TabBarView(controller: _tab, children: [
-              _ApptList(items: _filter('upcoming'), onCancel: _cancel, statusColor: _statusColor, onRefresh: _load, emptyMsg: 'No upcoming appointments'),
-              _ApptList(items: _filter('past'),     onCancel: null,    statusColor: _statusColor, onRefresh: _load, emptyMsg: 'No past appointments'),
-              _ApptList(items: _filter('cancelled'),onCancel: null,    statusColor: _statusColor, onRefresh: _load, emptyMsg: 'No cancelled appointments'),
-            ]),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.pushNamed(context, AppRoutes.clinicDirectory),
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Book', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-      ),
+      body: TabBarView(controller: _tab, children: [
+        _AppointmentList(appointments: upcoming, onCancel: (id) => context.read<AppState>().cancelAppointment(id)),
+        _AppointmentList(appointments: past, onCancel: null),
+      ]),
     );
   }
 }
 
-class _ApptList extends StatelessWidget {
-  final List<dynamic> items;
-  final Future<void> Function(dynamic)? onCancel;
-  final Color Function(String?) statusColor;
-  final Future<void> Function() onRefresh;
-  final String emptyMsg;
-  const _ApptList({required this.items, required this.onCancel, required this.statusColor, required this.onRefresh, required this.emptyMsg});
+class _AppointmentList extends StatelessWidget {
+  final List<Appointment> appointments;
+  final void Function(String)? onCancel;
+  const _AppointmentList({required this.appointments, required this.onCancel});
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(Icons.calendar_today_outlined, size: 52, color: Colors.grey.shade300),
-      const SizedBox(height: 12),
-      Text(emptyMsg, style: const TextStyle(color: AppColors.textMuted, fontSize: 15)),
-    ]));
-    return RefreshIndicator(
-      onRefresh: onRefresh,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
-        itemBuilder: (_, i) {
-          final a      = items[i] as Map<String, dynamic>;
-          final status = a['status']?.toString() ?? '';
-          final date   = a['appointmentDate']?.toString().split('T').first ?? '—';
-          final time   = a['timeSlot']?.toString() ?? '—';
-          return Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0,2))]),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                Expanded(child: Text(a['serviceName']?.toString() ?? 'Appointment',
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textDark))),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: statusColor(status).withOpacity(0.1), borderRadius: BorderRadius.circular(99)),
-                  child: Text(status, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: statusColor(status))),
-                ),
-              ]),
-              const SizedBox(height: 8),
-              Text(a['clinic'] != null ? (a['clinic']['name'] ?? '') : '',
-                style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
-              const SizedBox(height: 6),
-              Row(children: [
-                const Icon(Icons.calendar_today_outlined, size: 13, color: AppColors.textMuted),
-                const SizedBox(width: 5),
-                Text('$date  •  $time', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-              ]),
-              if (onCancel != null) ...[
-                const SizedBox(height: 12),
-                SizedBox(width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: () => onCancel!(a),
-                    style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red), minimumSize: const Size.fromHeight(38)),
-                    child: const Text('Cancel Appointment'),
-                  ),
-                ),
-              ],
+    if (appointments.isEmpty) {
+      return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.event_busy_outlined, size: 60, color: AppColors.textMuted),
+        const SizedBox(height: 14),
+        const Text('No appointments', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textDark)),
+        const SizedBox(height: 6),
+        const Text('Your appointments will appear here.', style: TextStyle(color: AppColors.textMuted)),
+        const SizedBox(height: 20),
+        if (onCancel != null)
+          ElevatedButton(
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.bookAppointment),
+            style: ElevatedButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            child: const Text('Book an Appointment')),
+      ]));
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: appointments.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (_, i) => _AppointmentCard(appt: appointments[i], onCancel: onCancel));
+  }
+}
+
+class _AppointmentCard extends StatelessWidget {
+  final Appointment appt;
+  final void Function(String)? onCancel;
+  const _AppointmentCard({required this.appt, required this.onCancel});
+
+  Color get _statusColor {
+    switch (appt.status) {
+      case AppointmentStatus.confirmed:   return Colors.green;
+      case AppointmentStatus.scheduled:   return AppColors.primary;
+      case AppointmentStatus.inProgress:  return Colors.orange;
+      case AppointmentStatus.completed:   return Colors.grey;
+      case AppointmentStatus.cancelled:   return Colors.red;
+    }
+  }
+  String get _statusLabel {
+    switch (appt.status) {
+      case AppointmentStatus.confirmed:   return 'Confirmed';
+      case AppointmentStatus.scheduled:   return 'Scheduled';
+      case AppointmentStatus.inProgress:  return 'In Progress';
+      case AppointmentStatus.completed:   return 'Completed';
+      case AppointmentStatus.cancelled:   return 'Cancelled';
+    }
+  }
+  IconData get _statusIcon {
+    switch (appt.status) {
+      case AppointmentStatus.confirmed:   return Icons.check_circle_outline;
+      case AppointmentStatus.scheduled:   return Icons.schedule;
+      case AppointmentStatus.inProgress:  return Icons.timelapse;
+      case AppointmentStatus.completed:   return Icons.task_alt;
+      case AppointmentStatus.cancelled:   return Icons.cancel_outlined;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fmt = DateFormat('MMM d, yyyy');
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white, borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0,2))]),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Header bar
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: _statusColor.withOpacity(0.08),
+            borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16))),
+          child: Row(children: [
+            Icon(_statusIcon, color: _statusColor, size: 16),
+            const SizedBox(width: 6),
+            Text(_statusLabel, style: TextStyle(color: _statusColor, fontWeight: FontWeight.w700, fontSize: 12)),
+            const Spacer(),
+            Text(fmt.format(appt.date), style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          ])),
+        // Body
+        Padding(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(appt.clinicName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.textDark),
+            maxLines: 2, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 4),
+          Row(children: [
+            const Icon(Icons.medical_services_outlined, size: 14, color: AppColors.textMuted),
+            const SizedBox(width: 4),
+            Expanded(child: Text(appt.serviceName, style: const TextStyle(color: AppColors.textMuted, fontSize: 13))),
+          ]),
+          const SizedBox(height: 4),
+          Row(children: [
+            const Icon(Icons.access_time_rounded, size: 14, color: AppColors.textMuted),
+            const SizedBox(width: 4),
+            Text(appt.timeLabel, style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
+          ]),
+          if (appt.clinicAddress.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textMuted),
+              const SizedBox(width: 4),
+              Expanded(child: Text(appt.clinicAddress,
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 12), maxLines: 2)),
             ]),
-          );
-        },
-      ),
-    );
+          ],
+          if (appt.notes != null && appt.notes!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: AppColors.fieldFill, borderRadius: BorderRadius.circular(8)),
+              child: Text(appt.notes!, style: const TextStyle(fontSize: 12, color: AppColors.textMuted))),
+          ],
+          if (onCancel != null &&
+              (appt.status == AppointmentStatus.scheduled || appt.status == AppointmentStatus.confirmed)) ...[
+            const SizedBox(height: 12),
+            SizedBox(width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => showDialog(context: context, builder: (_) => AlertDialog(
+                  title: const Text('Cancel Appointment'),
+                  content: const Text('Are you sure you want to cancel this appointment?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('Keep It')),
+                    TextButton(
+                      onPressed: () { Navigator.pop(context); onCancel!(appt.id); },
+                      child: const Text('Cancel Appointment', style: TextStyle(color: Colors.red))),
+                  ])),
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                child: const Text('Cancel Appointment'))),
+          ],
+        ])),
+      ]));
   }
 }
