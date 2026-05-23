@@ -38,6 +38,65 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  void _showAiSuggestion() {
+    final appState = context.read<AppState>();
+    final clinics  = appState.clinics;
+    if (clinics.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Loading clinics… please try again.')));
+      return;
+    }
+    // Score each clinic: lower = better
+    // Formula: (queueLength * baseWait) * 0.5 + distanceKm * 5
+    final scored = clinics.map((c) {
+      final waitScore = (c.queueLength * c.baseWaitTimePerPerson) * 0.5;
+      final distScore = c.distanceKm * 5;
+      final totalScore = waitScore + distScore;
+      return _ScoredClinic(clinic: c, score: totalScore);
+    }).toList()
+      ..sort((a, b) => a.score.compareTo(b.score));
+
+    final best = scored.first.clinic;
+    final reason = _buildReason(best, scored);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _AiSuggestionSheet(
+        best: best,
+        allScored: scored,
+        reason: reason,
+        onSelect: (c) {
+          Navigator.pop(context);
+          Navigator.pushNamed(context, AppRoutes.clinicDetail, arguments: {
+            '_id': c.id, 'name': c.name, 'address': c.address,
+            'services': c.services,
+            'currentWaitingTime': c.currentWaitingTime,
+            'queueLength': c.queueLength,
+            'contactNumber': c.contactNumber,
+            'status': c.status,
+          });
+        },
+        onViewMap: () {
+          Navigator.pop(context);
+          Navigator.pushNamed(context, AppRoutes.clinicMap);
+        },
+      ),
+    );
+  }
+
+  String _buildReason(_ScoredClinic sc) {
+    final c = sc.clinic;
+    final parts = <String>[];
+    if (c.queueLength <= 3) parts.add('only ${c.queueLength} people in queue');
+    if (c.currentWaitingTime < 30) parts.add('~${c.currentWaitingTime} min wait');
+    if (c.distanceKm < 2) parts.add('${c.distanceKm} km away');
+    return parts.isEmpty
+        ? 'Best overall balance of distance, queue, and wait time.'
+        : 'Because it has ${parts.join(", ")}.';
+  }
+
   Future<void> _goToBookAppointment() async {
     final result = await Navigator.pushNamed(context, AppRoutes.bookAppointment);
     if (!mounted) return;
@@ -58,6 +117,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _HomeTab(
             onJoinQueue: _goToJoinQueue,
             onBookAppointment: _goToBookAppointment,
+            onAiSuggest: _showAiSuggestion,
           ),
           const _QueueTab(),
           const _AppointmentsTab(),
@@ -105,7 +165,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 class _HomeTab extends StatelessWidget {
   final VoidCallback onJoinQueue;
   final VoidCallback onBookAppointment;
-  const _HomeTab({required this.onJoinQueue, required this.onBookAppointment});
+  final VoidCallback onAiSuggest;
+  const _HomeTab({required this.onJoinQueue, required this.onBookAppointment, required this.onAiSuggest});
 
   @override
   Widget build(BuildContext context) {
@@ -917,21 +978,23 @@ class _QuickActionCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final VoidCallback onTap;
+  final Color? color;
   const _QuickActionCard(
       {required this.filled,
       required this.icon,
       required this.title,
-      required this.onTap});
+      required this.onTap,
+      this.color});
   @override
   Widget build(BuildContext context) => GestureDetector(
         onTap: onTap,
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: filled ? AppColors.primary : Colors.white,
+            color: filled ? (color ?? AppColors.primary) : Colors.white,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-                color: filled ? AppColors.primary : AppColors.border),
+                color: filled ? (color ?? AppColors.primary) : (color ?? AppColors.border)),
             boxShadow: [
               BoxShadow(
                   color: Colors.black.withOpacity(0.06),
@@ -943,7 +1006,7 @@ class _QuickActionCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(icon,
-                  color: filled ? Colors.white : AppColors.primary, size: 26),
+                  color: filled ? Colors.white : (color ?? AppColors.primary), size: 26),
               const SizedBox(height: 8),
               Text(title,
                   style: TextStyle(
@@ -1309,5 +1372,360 @@ class _StatCard extends StatelessWidget {
             ),
           ]),
         ),
+      );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI SUGGESTION DATA CLASS
+// ─────────────────────────────────────────────────────────────────────────────
+class _ScoredClinic {
+  final Clinic clinic;
+  final double score;
+  const _ScoredClinic({required this.clinic, required this.score});
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AI SUGGESTION BOTTOM SHEET
+// ─────────────────────────────────────────────────────────────────────────────
+class _AiSuggestionSheet extends StatelessWidget {
+  final Clinic best;
+  final List<_ScoredClinic> allScored;
+  final String reason;
+  final void Function(Clinic) onSelect;
+  final VoidCallback onViewMap;
+
+  const _AiSuggestionSheet({
+    required this.best,
+    required this.allScored,
+    required this.reason,
+    required this.onSelect,
+    required this.onViewMap,
+  });
+
+  Color _waitColor(int wait) {
+    if (wait < 30) return Colors.green;
+    if (wait < 60) return Colors.orange;
+    return Colors.red;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.75,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      builder: (_, ctrl) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: Column(
+          children: [
+            // Handle
+            Container(
+              margin: const EdgeInsets.only(top: 10),
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Header
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.auto_awesome_rounded,
+                        color: Colors.purple, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('AI Clinic Recommendation',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 16,
+                                color: AppColors.textDark)),
+                        Text('Based on distance, queue & wait time',
+                            style: TextStyle(
+                                color: AppColors.textMuted, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+            const Divider(height: 1),
+
+            // Scrollable list
+            Expanded(
+              child: ListView(
+                controller: ctrl,
+                padding: const EdgeInsets.all(16),
+                children: [
+                  // ── Best Pick Card ──────────────────────────────────────
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF7C3AED), Color(0xFF4F46E5)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                            color: Colors.purple.withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4))
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          const Icon(Icons.stars_rounded,
+                              color: Colors.amber, size: 20),
+                          const SizedBox(width: 6),
+                          const Text('Best Pick for You',
+                              style: TextStyle(
+                                  color: Colors.white70,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12)),
+                        ]),
+                        const SizedBox(height: 10),
+                        Text(best.name,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 15)),
+                        const SizedBox(height: 4),
+                        Text(best.address,
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 12)),
+                        const SizedBox(height: 12),
+                        // Stats row
+                        Row(children: [
+                          _StatPill(
+                              icon: Icons.people_outline,
+                              label: '${best.queueLength} queued'),
+                          const SizedBox(width: 8),
+                          _StatPill(
+                              icon: Icons.access_time_rounded,
+                              label: '~${best.currentWaitingTime} min wait'),
+                          const SizedBox(width: 8),
+                          _StatPill(
+                              icon: Icons.near_me_outlined,
+                              label: '${best.distanceKm} km'),
+                        ]),
+                        const SizedBox(height: 12),
+                        // AI reason
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(10)),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.auto_awesome_outlined,
+                                  color: Colors.amber, size: 16),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(reason,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontStyle: FontStyle.italic)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.confirmation_number_outlined,
+                                  size: 16),
+                              label: const Text('Go Here'),
+                              onPressed: () => onSelect(best),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: Colors.purple.shade700,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.map_outlined, size: 16),
+                            label: const Text('View Map'),
+                            onPressed: onViewMap,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(color: Colors.white54),
+                              padding: const EdgeInsets.symmetric(
+                                  vertical: 12, horizontal: 14),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ]),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ── All branches ranked ─────────────────────────────────
+                  const Text('All Branches Ranked',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          color: AppColors.textDark)),
+                  const SizedBox(height: 4),
+                  const Text(
+                      'Sorted by best combination of distance, queue size, and wait time.',
+                      style: TextStyle(
+                          color: AppColors.textMuted, fontSize: 12)),
+                  const SizedBox(height: 12),
+
+                  ...allScored.asMap().entries.map((e) {
+                    final idx = e.key;
+                    final sc  = e.value;
+                    final c   = sc.clinic;
+                    final isTop = idx == 0;
+                    return GestureDetector(
+                      onTap: () => onSelect(c),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isTop
+                              ? Colors.purple.withOpacity(0.05)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: isTop
+                                  ? Colors.purple.withOpacity(0.3)
+                                  : AppColors.border,
+                              width: isTop ? 2 : 1),
+                        ),
+                        child: Row(children: [
+                          // Rank bubble
+                          Container(
+                            width: 34, height: 34,
+                            decoration: BoxDecoration(
+                              color: isTop
+                                  ? Colors.purple.withOpacity(0.15)
+                                  : Colors.grey.shade100,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Center(
+                              child: isTop
+                                  ? const Icon(Icons.stars_rounded,
+                                      color: Colors.purple, size: 18)
+                                  : Text('${idx + 1}',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          color: Colors.grey.shade600)),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                    c.name.replaceAll(
+                                        'Hi-Precision Diagnostics - ', ''),
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 13,
+                                        color: isTop
+                                            ? Colors.purple.shade800
+                                            : AppColors.textDark)),
+                                const SizedBox(height: 3),
+                                Row(children: [
+                                  Icon(Icons.people_outline,
+                                      size: 12,
+                                      color: _waitColor(c.currentWaitingTime)),
+                                  const SizedBox(width: 3),
+                                  Text('${c.queueLength} queued',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: _waitColor(
+                                              c.currentWaitingTime))),
+                                  const SizedBox(width: 10),
+                                  Icon(Icons.access_time_rounded,
+                                      size: 12,
+                                      color: _waitColor(c.currentWaitingTime)),
+                                  const SizedBox(width: 3),
+                                  Text('~${c.currentWaitingTime} min',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: _waitColor(
+                                              c.currentWaitingTime))),
+                                  const SizedBox(width: 10),
+                                  const Icon(Icons.near_me_outlined,
+                                      size: 12, color: AppColors.textMuted),
+                                  const SizedBox(width: 3),
+                                  Text('${c.distanceKm} km',
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.textMuted)),
+                                ]),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right_rounded,
+                              color: AppColors.textMuted, size: 18),
+                        ]),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _StatPill({required this.icon, required this.label});
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(99)),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, color: Colors.white, size: 12),
+          const SizedBox(width: 4),
+          Text(label,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700)),
+        ]),
       );
 }
