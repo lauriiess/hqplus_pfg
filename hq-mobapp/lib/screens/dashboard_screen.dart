@@ -21,6 +21,14 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _navIndex = 0;
 
+  void _onTabChange(int index) {
+    setState(() => _navIndex = index);
+    // Re-fetch fresh data whenever switching to Appointments (1) or Queue tabs
+    final s = context.read<AppState>();
+    if (index == 1) s.fetchAppointments();
+    if (index == 0) s.fetchQueueStatus();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +46,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (!mounted) return;
     if (result is QueueJoinResult) {
       context.read<AppState>().addQueueFromJoinResult(result);
+      // Also re-fetch from server to get the authoritative entry with real _id
+      await context.read<AppState>().fetchQueueStatus();
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Joined queue: ${result.queueNumber}')));
     }
@@ -47,7 +58,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final result = await Navigator.pushNamed(context, AppRoutes.bookAppointment);
     if (!mounted) return;
     if (result is Appointment) {
-      context.read<AppState>().addAppointment(result);
+      // Immediately add to local list + trigger server re-fetch
+      final s = context.read<AppState>();
+      s.addAppointment(result);
+      // Also await a fresh fetch so the Appointments tab is populated right away
+      await s.fetchAppointments();
+      if (!mounted) return;
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Appointment booked!')));
     }
@@ -135,7 +151,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _navIndex,
-        onTap: (i) => setState(() => _navIndex = i),
+        onTap: _onTabChange,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textMuted,
         showUnselectedLabels: true,
