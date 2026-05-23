@@ -133,7 +133,7 @@ class AppState extends ChangeNotifier {
 
   List<Appointment> get upcomingAppointments => _appointments
       .where((a) =>
-          a.status == AppointmentStatus.scheduled ||
+          a.status == AppointmentStatus.pending ||
           a.status == AppointmentStatus.confirmed)
       .toList();
 
