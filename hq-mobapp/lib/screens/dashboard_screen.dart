@@ -520,7 +520,7 @@ class _ApptList extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(a.timeLabel, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
               ]),
-              if (canCancel && (a.status == AppointmentStatus.scheduled || a.status == AppointmentStatus.confirmed)) ...[
+              if (canCancel && (a.status == AppointmentStatus.pending || a.status == AppointmentStatus.confirmed)) ...[
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,
