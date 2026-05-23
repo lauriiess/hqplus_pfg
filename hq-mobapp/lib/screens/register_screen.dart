@@ -1,147 +1,129 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../state/app_state.dart';
+import '../core/constants/app_colors.dart';
 import '../core/routes/app_routes.dart';
-import '../core/theme/app_theme.dart';
+import '../state/app_state.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
-  @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  @override State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  final _formKey    = GlobalKey<FormState>();
-  final _nameCtrl   = TextEditingController();
-  final _emailCtrl  = TextEditingController();
-  final _phoneCtrl  = TextEditingController();
-  final _passCtrl   = TextEditingController();
-  final _confirmCtrl= TextEditingController();
-  bool  _obscure    = true;
-  bool  _loading    = false;
+  final nameCtrl     = TextEditingController();
+  final emailCtrl    = TextEditingController();
+  final phoneCtrl    = TextEditingController();
+  final passwordCtrl = TextEditingController();
+  final confirmCtrl  = TextEditingController();
+  bool showPass = false, showConfirm = false;
 
-  @override
-  void dispose() {
-    _nameCtrl.dispose(); _emailCtrl.dispose();
-    _phoneCtrl.dispose(); _passCtrl.dispose(); _confirmCtrl.dispose();
-    super.dispose();
+  @override void dispose() {
+    nameCtrl.dispose(); emailCtrl.dispose(); phoneCtrl.dispose();
+    passwordCtrl.dispose(); confirmCtrl.dispose(); super.dispose();
   }
 
   Future<void> _register() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_passCtrl.text != _confirmCtrl.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match'), backgroundColor: AppColors.error));
-      return;
+    final name  = nameCtrl.text.trim();
+    final email = emailCtrl.text.trim();
+    final phone = phoneCtrl.text.trim();
+    final pass  = passwordCtrl.text;
+    final conf  = confirmCtrl.text;
+
+    if (name.isEmpty || email.isEmpty || pass.isEmpty) {
+      _snack('Please fill in all required fields.'); return;
     }
-    setState(() => _loading = true);
-    try {
-      await context.read<AppState>().register(
-        fullName: _nameCtrl.text.trim(),
-        email:    _emailCtrl.text.trim(),
-        phone:    _phoneCtrl.text.trim(),
-        password: _passCtrl.text.trim(),
-      );
-      if (mounted) Navigator.pushReplacementNamed(context, AppRoutes.home);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error));
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    if (pass != conf) { _snack('Passwords do not match.'); return; }
+    if (pass.length < 6) { _snack('Password must be at least 6 characters.'); return; }
+
+    final ok = await context.read<AppState>().register(
+      fullName: name, email: email, phone: phone, password: pass);
+    if (!mounted) return;
+    if (ok) {
+      Navigator.pushReplacementNamed(context, AppRoutes.dashboard);
+    } else {
+      _snack(context.read<AppState>().authError ?? 'Registration failed.');
     }
   }
 
+  void _snack(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+
   @override
   Widget build(BuildContext context) {
+    final loading = context.watch<AppState>().loading;
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter, end: Alignment.bottomCenter,
-            colors: [AppColors.bgTop, AppColors.bgBottom],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  Container(
-                    width: 64, height: 64,
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18),
-                      boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 12)]),
-                    child: const Icon(Icons.personal_injury_outlined, color: AppColors.primary, size: 36),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('Create Account', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: Colors.white)),
-                  const SizedBox(height: 4),
-                  Text('Register as a patient', style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.8))),
-                  const SizedBox(height: 28),
-
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20),
-                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20)]),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _field(_nameCtrl,  'Full Name',      Icons.person_outline,    type: TextInputType.name),
-                          const SizedBox(height: 14),
-                          _field(_emailCtrl, 'Email Address',  Icons.email_outlined,    type: TextInputType.emailAddress,
-                            validator: (v) => (v == null || !v.contains('@')) ? 'Enter a valid email' : null),
-                          const SizedBox(height: 14),
-                          _field(_phoneCtrl, 'Phone Number',   Icons.phone_outlined,    type: TextInputType.phone),
-                          const SizedBox(height: 14),
-                          _field(_passCtrl,  'Password',       Icons.lock_outline,      obscure: _obscure,
-                            suffix: IconButton(icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                              onPressed: () => setState(() => _obscure = !_obscure)),
-                            validator: (v) => (v == null || v.length < 6) ? 'Min 6 characters' : null),
-                          const SizedBox(height: 14),
-                          _field(_confirmCtrl,'Confirm Password', Icons.lock_outline,
-                            obscure: true,
-                            validator: (v) => v != _passCtrl.text ? 'Passwords do not match' : null),
-                          const SizedBox(height: 24),
-                          ElevatedButton(
-                            onPressed: _loading ? null : _register,
-                            child: _loading
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                              : const Text('Create Account'),
-                          ),
-                          const SizedBox(height: 14),
-                          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            Text('Already have an account? ', style: TextStyle(fontSize: 13, color: AppColors.textMuted)),
-                            GestureDetector(
-                              onTap: () => Navigator.pop(context),
-                              child: const Text('Sign In', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary)),
-                            ),
-                          ]),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+        decoration: const BoxDecoration(gradient: LinearGradient(
+          begin: Alignment.topCenter, end: Alignment.bottomCenter,
+          colors: [AppColors.bgTop, AppColors.bgBottom])),
+        child: SafeArea(child: Center(child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+          child: Column(children: [
+            const SizedBox(height: 10),
+            Container(width: 64, height: 64,
+              decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+              child: const Icon(Icons.local_hospital_rounded, color: AppColors.primary, size: 30)),
+            const SizedBox(height: 10),
+            const Text('HealthQueue+', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 26)),
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 24, offset: const Offset(0,10))]),
+              padding: const EdgeInsets.all(18),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                const Text('Create Account', textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textDark)),
+                const SizedBox(height: 6),
+                const Text('Join HealthQueue+ today', textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textMuted)),
+                const SizedBox(height: 16),
+                _field('Full Name *', nameCtrl, Icons.person_outline, 'Juan Dela Cruz'),
+                const SizedBox(height: 12),
+                _field('Email Address *', emailCtrl, Icons.email_outlined, 'juan@email.com', type: TextInputType.emailAddress),
+                const SizedBox(height: 12),
+                _field('Phone Number', phoneCtrl, Icons.phone_outlined, '+63 917 123 4567', type: TextInputType.phone),
+                const SizedBox(height: 12),
+                _passField('Password *', passwordCtrl, showPass, () => setState(() => showPass = !showPass)),
+                const SizedBox(height: 12),
+                _passField('Confirm Password *', confirmCtrl, showConfirm, () => setState(() => showConfirm = !showConfirm)),
+                const SizedBox(height: 18),
+                loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ElevatedButton(onPressed: _register,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary, foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                      child: const Text('Create Account', style: TextStyle(fontWeight: FontWeight.w800))),
+                const SizedBox(height: 14),
+                Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const Text('Already have an account? ', style: TextStyle(color: AppColors.textMuted)),
+                  TextButton(onPressed: () => Navigator.pop(context),
+                    child: const Text('Sign In', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800))),
+                ]),
+              ]),
             ),
-          ),
-        ),
+          ]),
+        ))),
       ),
     );
   }
 
-  Widget _field(TextEditingController ctrl, String label, IconData icon, {
-    TextInputType type = TextInputType.text,
-    bool obscure = false, Widget? suffix,
-    String? Function(String?)? validator,
-  }) => TextFormField(
-    controller: ctrl,
-    keyboardType: type,
-    obscureText: obscure,
-    decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), suffixIcon: suffix),
-    validator: validator ?? (v) => (v == null || v.isEmpty) ? 'Required' : null,
-  );
+  Widget _field(String label, TextEditingController ctrl, IconData icon, String hint,
+      {TextInputType type = TextInputType.text}) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+      const SizedBox(height: 6),
+      TextField(controller: ctrl, keyboardType: type,
+        decoration: InputDecoration(prefixIcon: Icon(icon), hintText: hint)),
+    ]);
+
+  Widget _passField(String label, TextEditingController ctrl, bool show, VoidCallback toggle) =>
+    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+      const SizedBox(height: 6),
+      TextField(controller: ctrl, obscureText: !show,
+        decoration: InputDecoration(
+          prefixIcon: const Icon(Icons.lock_outline), hintText: '••••••••',
+          suffixIcon: IconButton(icon: Icon(show ? Icons.visibility_off : Icons.visibility), onPressed: toggle))),
+    ]);
 }
