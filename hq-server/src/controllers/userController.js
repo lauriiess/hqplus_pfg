@@ -12,7 +12,7 @@ const getUsers = async (req, res) => {
     const filter = {};
     if (req.query.role) filter.role = req.query.role;
     if (req.query.clinicId) filter.clinicId = req.query.clinicId;
-    const users = await User.find(filter).select('-password').sort({ createdAt: -1 });
+    const users = await User.find(filter).select('-password').populate('clinicId','name').sort({ createdAt: -1 });
     return res.json(users);
   } catch (err) {
     return res.status(500).json({ message: 'Failed to get users.' });
