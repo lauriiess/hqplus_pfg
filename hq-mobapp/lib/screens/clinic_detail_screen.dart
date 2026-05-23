@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../core/theme/app_theme.dart';
+import '../core/constants/app_colors.dart';
 import '../core/routes/app_routes.dart';
 import '../services/api_service.dart';
 
 class ClinicDetailScreen extends StatefulWidget {
   const ClinicDetailScreen({super.key});
-  @override
-  State<ClinicDetailScreen> createState() => _ClinicDetailScreenState();
+  @override State<ClinicDetailScreen> createState() => _ClinicDetailScreenState();
 }
 
 class _ClinicDetailScreenState extends State<ClinicDetailScreen> {
   Map<String, dynamic>? _clinic;
-  bool   _loading    = false;
   bool   _joiningQueue = false;
-  String? _error;
   String? _selectedService;
 
   @override
@@ -22,10 +19,15 @@ class _ClinicDetailScreenState extends State<ClinicDetailScreen> {
     super.didChangeDependencies();
     if (_clinic == null) {
       final args = ModalRoute.of(context)?.settings.arguments;
-      if (args is Map<String, dynamic>) {
-        setState(() => _clinic = args);
-      }
+      if (args is Map<String, dynamic>) setState(() => _clinic = args);
     }
+  }
+
+  Future<void> _call() async {
+    final phone = _clinic?['contactNumber']?.toString() ?? '';
+    if (phone.isEmpty) return;
+    final uri = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(uri)) launchUrl(uri);
   }
 
   Future<void> _joinQueue() async {
@@ -33,202 +35,134 @@ class _ClinicDetailScreenState extends State<ClinicDetailScreen> {
     if (clinic == null) return;
     if (_selectedService == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a service first'), backgroundColor: AppColors.warning));
+        const SnackBar(content: Text('Please select a service first'),
+          backgroundColor: AppColors.warning));
       return;
     }
     setState(() => _joiningQueue = true);
     try {
-      await ApiService.joinQueue(
-        clinicId:    clinic['_id']?.toString() ?? '',
-        serviceName: _selectedService!,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Joined queue for $_selectedService!'), backgroundColor: AppColors.success));
-        Navigator.pushNamed(context, AppRoutes.queueStatus);
-      }
+      final id = clinic['_id']?.toString() ?? clinic['id']?.toString() ?? '';
+      await ApiService.joinQueue(clinicId: id, serviceName: _selectedService!);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Joined queue successfully!'), backgroundColor: AppColors.success));
+      Navigator.pushNamed(context, AppRoutes.queueStatus);
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error));
     } finally {
       if (mounted) setState(() => _joiningQueue = false);
     }
   }
 
-  Future<void> _callClinic(String? phone) async {
-    if (phone == null || phone.isEmpty) return;
-    final uri = Uri(scheme: 'tel', path: phone);
-    if (await canLaunchUrl(uri)) await launchUrl(uri);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final c = _clinic;
-    if (c == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    final clinic = _clinic;
+    if (clinic == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
-    final services = (c['services'] as List<dynamic>?) ?? [];
-    final acceptsWalkIn   = c['acceptsWalkIn']    == true;
-    final acceptsAppt     = c['acceptsAppointment'] == true;
-    final phone           = c['contactNumber']?.toString() ?? '';
-    final hours           = c['operatingHours']?.toString() ?? '—';
-    final address         = c['address']?.toString() ?? '';
-    final city            = c['city']?.toString() ?? '';
-    final facilityType    = c['facilityType']?.toString() ?? 'Health Center';
+    final services = List<String>.from(clinic['services'] ?? []);
+    final wait = clinic['currentWaitingTime'] ?? 0;
+    final queue = clinic['queueLength'] ?? 0;
 
     return Scaffold(
-      backgroundColor: AppColors.surface,
-      body: CustomScrollView(
-        slivers: [
-          // Gradient header
-          SliverAppBar(
-            expandedHeight: 200,
-            pinned: true,
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            flexibleSpace: FlexibleSpaceBar(
-              background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                    colors: [AppColors.bgTop, AppColors.bgBottom]),
-                ),
-                padding: const EdgeInsets.fromLTRB(20, 100, 20, 20),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.end, children: [
-                  Row(children: [
-                    Container(width: 50, height: 50,
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-                      child: const Icon(Icons.local_hospital_rounded, color: AppColors.primary, size: 28)),
-                    const SizedBox(width: 14),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(c['name']?.toString() ?? '', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18)),
-                      Text(facilityType, style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12)),
-                    ])),
-                  ]),
-                  const SizedBox(height: 10),
-                  Row(children: [
-                    if (acceptsWalkIn) _Chip('Walk-in'),
-                    if (acceptsAppt)   ...[const SizedBox(width: 8), _Chip('Appointments')],
-                  ]),
-                ]),
-              ),
-            ),
-          ),
-
-          SliverPadding(
-            padding: const EdgeInsets.all(20),
-            sliver: SliverList(delegate: SliverChildListDelegate([
-
-              // Info card
-              _InfoSection(children: [
-                if (address.isNotEmpty) _InfoRow(Icons.location_on_outlined, '$address, $city'),
-                _InfoRow(Icons.access_time_outlined, hours),
-                if (phone.isNotEmpty) GestureDetector(
-                  onTap: () => _callClinic(phone),
-                  child: _InfoRow(Icons.phone_outlined, phone, color: AppColors.primary),
-                ),
-                _InfoRow(Icons.people_outline, 'Max ${c['maxQueueCapacity'] ?? 60} patients/day'),
-              ]),
-              const SizedBox(height: 20),
-
-              // Services
-              const Text('Available Services', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
-              const SizedBox(height: 10),
-
-              if (services.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                  child: const Center(child: Column(children: [
-                    Icon(Icons.medical_services_outlined, size: 36, color: AppColors.textMuted),
-                    SizedBox(height: 8),
-                    Text('No services listed yet', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                  ])),
-                )
-              else
-                ...services.map((s) {
-                  final name = s is Map ? s['name']?.toString() : s.toString();
-                  if (name == null) return const SizedBox.shrink();
-                  final selected = _selectedService == name;
-                  return GestureDetector(
-                    onTap: () => setState(() => _selectedService = selected ? null : name),
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: selected ? const Color(0xFFEFF6FF) : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: selected ? AppColors.primary : const Color(0xFFEEEEEE), width: selected ? 2 : 1),
-                      ),
-                      child: Row(children: [
-                        Icon(Icons.medical_services_outlined,
-                          color: selected ? AppColors.primary : AppColors.textMuted, size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(child: Text(name,
-                          style: TextStyle(fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                            color: selected ? AppColors.primary : AppColors.textDark, fontSize: 14))),
-                        if (selected) const Icon(Icons.check_circle, color: AppColors.primary, size: 20),
-                      ]),
-                    ),
-                  );
-                }),
-
-              const SizedBox(height: 24),
-
-              // Action buttons
-              if (acceptsWalkIn) ...[
-                ElevatedButton.icon(
-                  onPressed: _joiningQueue ? null : _joinQueue,
-                  icon: _joiningQueue
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Icon(Icons.queue_outlined),
-                  label: Text(_joiningQueue ? 'Joining…' : 'Join Walk-in Queue'),
-                  style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-                ),
-                const SizedBox(height: 10),
-              ],
-              if (acceptsAppt) OutlinedButton.icon(
-                onPressed: () => Navigator.pushNamed(context, AppRoutes.bookAppointment, arguments: c),
-                icon: const Icon(Icons.calendar_month_outlined),
-                label: const Text('Book Appointment'),
-                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-              ),
-
-              const SizedBox(height: 30),
-            ])),
-          ),
+      backgroundColor: const Color(0xFFF6F7FB),
+      appBar: AppBar(
+        backgroundColor: Colors.white, foregroundColor: AppColors.textDark,
+        title: Text(clinic['name'] ?? 'Clinic',
+          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+          maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(icon: const Icon(Icons.phone_outlined), onPressed: _call),
         ],
       ),
+      body: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Header card
+          Container(padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(colors: [AppColors.bgTop, AppColors.bgBottom]),
+              borderRadius: BorderRadius.circular(16)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(clinic['name'] ?? '',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16)),
+              const SizedBox(height: 6),
+              Row(children: [
+                const Icon(Icons.location_on_outlined, color: Colors.white70, size: 14),
+                const SizedBox(width: 4),
+                Expanded(child: Text(clinic['address'] ?? '',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12))),
+              ]),
+              const SizedBox(height: 12),
+              Row(children: [
+                _StatChip(label: '\$wait min', icon: Icons.access_time_rounded),
+                const SizedBox(width: 10),
+                _StatChip(label: '\$queue in queue', icon: Icons.people_outline),
+              ]),
+            ])),
+          const SizedBox(height: 16),
+
+          // Services
+          const Text('Select a Service',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.textDark)),
+          const SizedBox(height: 10),
+          ...services.map((s) {
+            final sel = s == _selectedService;
+            return GestureDetector(
+              onTap: () => setState(() => _selectedService = s),
+              child: AnimatedContainer(duration: const Duration(milliseconds: 150),
+                margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: sel ? AppColors.primary : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: sel ? AppColors.primary : AppColors.border, width: 2)),
+                child: Row(children: [
+                  Icon(Icons.medical_services_outlined,
+                    color: sel ? Colors.white : AppColors.primary),
+                  const SizedBox(width: 12),
+                  Text(s, style: TextStyle(fontWeight: FontWeight.w700,
+                    color: sel ? Colors.white : AppColors.textDark)),
+                  const Spacer(),
+                  if (sel) const Icon(Icons.check_circle, color: Colors.white, size: 20),
+                ])));
+          }),
+
+          const SizedBox(height: 20),
+          Row(children: [
+            Expanded(child: ElevatedButton.icon(
+              icon: const Icon(Icons.confirmation_number_outlined),
+              label: _joiningQueue
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Join Queue'),
+              onPressed: _joiningQueue ? null : _joinQueue,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
+            const SizedBox(width: 10),
+            Expanded(child: OutlinedButton.icon(
+              icon: const Icon(Icons.calendar_month_outlined),
+              label: const Text('Book Appt'),
+              onPressed: () => Navigator.pushNamed(context, AppRoutes.bookAppointment),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary, side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))))),
+          ]),
+        ])),
     );
   }
 }
 
-class _Chip extends StatelessWidget {
+class _StatChip extends StatelessWidget {
   final String label;
-  const _Chip(this.label);
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+  final IconData icon;
+  const _StatChip({required this.label, required this.icon});
+  @override Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
     decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(99)),
-    child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-  );
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, color: Colors.white, size: 14),
+      const SizedBox(width: 4),
+      Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12)),
+    ]));
 }
-
-class _InfoSection extends StatelessWidget {
-  final List<Widget> children;
-  const _InfoSection({required this.children});
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
-      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0,2))]),
-    child: Column(children: children.map((c) => Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: c)).toList()),
-  );
-}
-
-Widget _InfoRow(IconData icon, String text, {Color? color}) => Row(
-  crossAxisAlignment: CrossAxisAlignment.start,
-  children: [
-    Icon(icon, size: 16, color: color ?? AppColors.textMuted),
-    const SizedBox(width: 10),
-    Expanded(child: Text(text, style: TextStyle(fontSize: 13, color: color ?? AppColors.textMuted, height: 1.4))),
-  ],
-);
