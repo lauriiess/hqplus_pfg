@@ -12,185 +12,252 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
   Map<String, dynamic>? _queueStatus;
+  bool _loading = true;
+  String? _error;
 
   @override
-  void initState() {
-    super.initState();
-    _loadQueueStatus();
-  }
+  void initState() { super.initState(); _load(); }
 
-  Future<void> _loadQueueStatus() async {
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
     try {
       final data = await ApiService.getMyQueueStatus();
-      if (mounted) setState(() => _queueStatus = data);
-    } catch (_) {}
+      if (mounted) setState(() { _queueStatus = data; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AppState>().currentUser;
+    final active = _queueStatus?['active'] == true;
+    final entry  = _queueStatus?['entry'] as Map<String, dynamic>?;
+
     return Scaffold(
       backgroundColor: AppColors.surface,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Column(
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: CustomScrollView(
+          slivers: [
+            // App bar with gradient
+            SliverAppBar(
+              expandedHeight: 160,
+              floating: false, pinned: true,
+              backgroundColor: AppColors.primary,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+                  onPressed: () => Navigator.pushNamed(context, AppRoutes.notifications),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.person_outline, color: Colors.white),
+                  onPressed: () => Navigator.pushNamed(context, AppRoutes.profile),
+                ),
+              ],
+              flexibleSpace: FlexibleSpaceBar(
+                background: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft, end: Alignment.bottomRight,
+                      colors: [AppColors.bgTop, AppColors.bgBottom],
+                    ),
+                  ),
+                  padding: const EdgeInsets.fromLTRB(20, 80, 20, 20),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      Text('Hi, ${user?.fullName.split(' ').first ?? 'Patient'}! 👋',
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textDark)),
-                      const SizedBox(height: 2),
-                      const Text('How are you feeling today?',
-                        style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+                      Text('Hello, ${user?.fullName.split(' ').first ?? 'Patient'}!',
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.white)),
+                      const SizedBox(height: 4),
+                      Text('How can we help you today?',
+                        style: TextStyle(fontSize: 13, color: Colors.white.withOpacity(0.85))),
                     ],
                   ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.notifications_outlined, color: AppColors.primary),
-                    onPressed: () => Navigator.pushNamed(context, AppRoutes.notifications),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              // Active queue banner
-              if (_queueStatus != null && (_queueStatus!['active'] == true)) ...[
-                _activeQueueBanner(),
-                const SizedBox(height: 20),
-              ],
-
-              // Quick actions
-              const Text('Quick Actions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
-              const SizedBox(height: 12),
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.5,
-                children: [
-                  _actionCard('Find Clinic', Icons.search_rounded, AppColors.primary,
-                      () => Navigator.pushNamed(context, AppRoutes.clinicDirectory)),
-                  _actionCard('My Queue', Icons.confirmation_num_outlined, AppColors.secondary,
-                      () => Navigator.pushNamed(context, AppRoutes.queueStatus)),
-                  _actionCard('Appointments', Icons.calendar_today_outlined, const Color(0xFF7B1FA2),
-                      () => Navigator.pushNamed(context, AppRoutes.appointments)),
-                  _actionCard('Ask AI', Icons.chat_bubble_outline, const Color(0xFFE65100),
-                      () => Navigator.pushNamed(context, AppRoutes.chatbot)),
-                ],
-              ),
-              const SizedBox(height: 24),
-
-              // Info card
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [AppColors.bgTop, AppColors.bgBottom]),
-                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.tips_and_updates_outlined, color: Colors.white, size: 36),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Did you know?', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-                          SizedBox(height: 4),
-                          Text('You can book appointments and check wait times before going to the clinic.',
-                            style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (i) {
-          setState(() => _selectedIndex = i);
-          switch (i) {
-            case 1: Navigator.pushNamed(context, AppRoutes.clinicDirectory); break;
-            case 2: Navigator.pushNamed(context, AppRoutes.appointments); break;
-            case 3: Navigator.pushNamed(context, AppRoutes.profile); break;
-          }
-        },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.search_outlined), selectedIcon: Icon(Icons.search), label: 'Clinics'),
-          NavigationDestination(icon: Icon(Icons.calendar_month_outlined), selectedIcon: Icon(Icons.calendar_month), label: 'Appointments'),
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profile'),
-        ],
-      ),
-    );
-  }
-
-  Widget _activeQueueBanner() {
-    final entries = (_queueStatus!['entries'] as List<dynamic>?) ?? [];
-    if (entries.isEmpty) return const SizedBox.shrink();
-    final e = entries.first as Map<String, dynamic>;
-    final clinic = e['clinic'] as Map<String, dynamic>? ?? {};
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, AppRoutes.queueStatus),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.success,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.confirmation_num_rounded, color: Colors.white, size: 32),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('You\'re in queue!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
-                  Text('${clinic['name'] ?? ''} — #${e['queueNumber'] ?? ''}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                  Text('~${e['estimatedWaitMinutes'] ?? 0} min wait · ${e['patientsAhead'] ?? 0} ahead',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
-          ],
-        ),
-      ),
-    );
-  }
 
-  Widget _actionCard(String label, IconData icon, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12, offset: const Offset(0, 4))]),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(backgroundColor: color.withOpacity(0.12), radius: 24,
-              child: Icon(icon, color: color, size: 24)),
-            const SizedBox(height: 8),
-            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13)),
+            SliverPadding(
+              padding: const EdgeInsets.all(20),
+              sliver: SliverList(delegate: SliverChildListDelegate([
+
+                // ── Active Queue Banner ──────────────────────────────────
+                if (_loading)
+                  const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+                else if (_error != null)
+                  _ErrorCard(message: _error!, onRetry: _load)
+                else if (active && entry != null)
+                  _QueueBanner(entry: entry, queueStatus: _queueStatus!, onRefresh: _load)
+                else
+                  _EmptyQueueCard(),
+
+                const SizedBox(height: 24),
+
+                // ── Quick Actions ────────────────────────────────────────
+                const Text('Quick Actions', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
+                const SizedBox(height: 14),
+                GridView.count(
+                  crossAxisCount: 2, shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 12, mainAxisSpacing: 12,
+                  childAspectRatio: 1.5,
+                  children: [
+                    _QuickAction(icon: Icons.queue_outlined,        label: 'Find a Clinic',     color: const Color(0xFF2563EB), route: AppRoutes.clinicDirectory),
+                    _QuickAction(icon: Icons.calendar_month_outlined,label: 'Appointments',     color: const Color(0xFF16A34A), route: AppRoutes.appointments),
+                    _QuickAction(icon: Icons.monitor_heart_outlined, label: 'Queue Status',     color: const Color(0xFFD97706), route: AppRoutes.queueStatus),
+                    _QuickAction(icon: Icons.chat_bubble_outline,    label: 'Ask Assistant',    color: const Color(0xFF7C3AED), route: AppRoutes.chatbot),
+                  ],
+                ),
+
+                const SizedBox(height: 24),
+                const Text('Information', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textDark)),
+                const SizedBox(height: 14),
+                _InfoCard(
+                  icon: Icons.info_outline,
+                  title: 'How Queue Works',
+                  desc: 'Find a clinic → Select service → Join queue → Wait for your number to be called.',
+                  color: const Color(0xFFEFF6FF),
+                  iconColor: const Color(0xFF2563EB),
+                ),
+                const SizedBox(height: 10),
+                _InfoCard(
+                  icon: Icons.access_time_outlined,
+                  title: 'Operating Hours',
+                  desc: 'Most clinics are open Monday–Saturday, 8:00 AM – 5:00 PM.',
+                  color: const Color(0xFFF0FDF4),
+                  iconColor: const Color(0xFF16A34A),
+                ),
+              ])),
+            ),
           ],
         ),
       ),
     );
   }
+}
+
+class _QueueBanner extends StatelessWidget {
+  final Map<String, dynamic> entry, queueStatus;
+  final VoidCallback onRefresh;
+  const _QueueBanner({required this.entry, required this.queueStatus, required this.onRefresh});
+  @override
+  Widget build(BuildContext context) {
+    final ahead = queueStatus['ahead'] ?? 0;
+    final wait  = queueStatus['estimatedWait'] ?? 0;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFF1D4ED8), Color(0xFF2563EB)]),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: const Color(0xFF2563EB).withOpacity(0.3), blurRadius: 16, offset: const Offset(0,6))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.queue, color: Colors.white70, size: 16),
+          const SizedBox(width: 6),
+          Text('Active Queue — ${entry['serviceName'] ?? ''}',
+            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600)),
+          const Spacer(),
+          IconButton(icon: const Icon(Icons.refresh, color: Colors.white70, size: 18), onPressed: onRefresh, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          Text(entry['queueNumber'] ?? 'Q---',
+            style: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900, color: Colors.white, height: 1)),
+          const SizedBox(width: 20),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('$ahead ahead of you', style: const TextStyle(color: Colors.white, fontSize: 14)),
+            Text('~$wait min wait',    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12)),
+          ]),
+        ]),
+        const SizedBox(height: 14),
+        SizedBox(width: double.infinity,
+          child: OutlinedButton(
+            onPressed: () => Navigator.pushNamed(context, AppRoutes.queueStatus),
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white54), minimumSize: const Size.fromHeight(38)),
+            child: const Text('View Full Status'),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _EmptyQueueCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.grey.shade200)),
+    child: Column(children: [
+      Icon(Icons.queue_outlined, size: 40, color: Colors.grey.shade300),
+      const SizedBox(height: 10),
+      const Text('No active queue', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.textDark)),
+      const SizedBox(height: 4),
+      Text('Find a clinic and join a queue to get started.', style: TextStyle(fontSize: 12, color: AppColors.textMuted), textAlign: TextAlign.center),
+      const SizedBox(height: 14),
+      ElevatedButton.icon(
+        onPressed: () => Navigator.pushNamed(context, AppRoutes.clinicDirectory),
+        icon: const Icon(Icons.search, size: 16),
+        label: const Text('Find a Clinic'),
+        style: ElevatedButton.styleFrom(minimumSize: const Size(0, 40)),
+      ),
+    ]),
+  );
+}
+
+class _ErrorCard extends StatelessWidget {
+  final String message; final VoidCallback onRetry;
+  const _ErrorCard({required this.message, required this.onRetry});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(16),
+    decoration: BoxDecoration(color: const Color(0xFFFEF2F2), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFFCA5A5))),
+    child: Row(children: [
+      const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
+      const SizedBox(width: 10),
+      Expanded(child: Text(message, style: const TextStyle(fontSize: 13, color: Color(0xFF991B1B)))),
+      TextButton(onPressed: onRetry, child: const Text('Retry')),
+    ]),
+  );
+}
+
+class _QuickAction extends StatelessWidget {
+  final IconData icon; final String label; final Color color; final String route;
+  const _QuickAction({required this.icon, required this.label, required this.color, required this.route});
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: () => Navigator.pushNamed(context, route),
+    child: Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0,2))]),
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Icon(icon, color: color, size: 26),
+        Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+      ]),
+    ),
+  );
+}
+
+class _InfoCard extends StatelessWidget {
+  final IconData icon; final String title, desc; final Color color, iconColor;
+  const _InfoCard({required this.icon, required this.title, required this.desc, required this.color, required this.iconColor});
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, color: iconColor, size: 22),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: iconColor)),
+        const SizedBox(height: 3),
+        Text(desc, style: TextStyle(fontSize: 12, color: iconColor.withOpacity(0.8), height: 1.4)),
+      ])),
+    ]),
+  );
 }
