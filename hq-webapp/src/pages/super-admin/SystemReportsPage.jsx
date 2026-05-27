@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { dashboardApi } from '../../services/api'
-import styles from './SystemReportsPage.module.css'
+import styles from './super-admin.module.css'
 
 const FALLBACK_MONTHLY = [
   { month: 'Nov', patients: 3200, appointments: 810 },
