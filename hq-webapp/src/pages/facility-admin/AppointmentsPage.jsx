@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { queueApi, appointmentsApi } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
-import styles from './AppointmentsPage.module.css'
+import styles from './facility-admin.module.css'
 
 const STATUS_COLOR = { waiting:'badge-warn', serving:'badge-blue', completed:'badge-green', skipped:'badge-gray', no_show:'badge-red' }
 
