@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api, { clinicsApi } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
-import styles from './ServicesPage.module.css'
+import styles from './facility-admin.module.css'
 
 export default function ServicesPage() {
   const { user }  = useAuth()
