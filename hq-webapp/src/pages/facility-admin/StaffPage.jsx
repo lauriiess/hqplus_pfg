@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
-import styles from './StaffPage.module.css'
+import styles from './facility-admin.module.css'
 
 const ROLES       = ['doctor','nurse','midwife','med_tech','pharmacist','admin']
 const ROLE_LABELS = { doctor:'Doctor', nurse:'Nurse', midwife:'Midwife', med_tech:'Med Tech', pharmacist:'Pharmacist', admin:'Admin Staff' }
