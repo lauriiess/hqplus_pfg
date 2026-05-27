@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { clinicsApi } from '../../services/api'
-import styles from './ClinicManagementPage.module.css'
+import styles from './super-admin.module.css'
 
 const STATUS_BADGE = { open:'badge-green', closed:'badge-gray', maintenance:'badge-warn', active:'badge-green', inactive:'badge-gray' }
 const EMPTY_FORM = {
