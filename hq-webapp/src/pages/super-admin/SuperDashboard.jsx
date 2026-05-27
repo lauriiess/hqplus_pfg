@@ -4,7 +4,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts'
 import api from '../../services/api'
-import styles from './SuperDashboard.module.css'
+import styles from './super-admin.module.css'
 
 const FACILITY_GROWTH = [
   { month: 'Nov', count: 18 }, { month: 'Dec', count: 18 },
