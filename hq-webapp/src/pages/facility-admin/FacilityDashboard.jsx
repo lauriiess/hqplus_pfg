@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { dashboardApi } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
-import styles from './FacilityDashboard.module.css'
+import styles from './facility-admin.module.css'
 
 const DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
 const SERVICE_COLORS = ['#2563EB','#16A34A','#D97706','#7C3AED','#0D9488']
