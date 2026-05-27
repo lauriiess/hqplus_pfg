@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import styles from './RoleManagementPage.module.css'
+import styles from './super-admin.module.css'
 
 const PERM_OPTIONS = [
   'full-access','queue-management','patient-view','patient-checkin',
