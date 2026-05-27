@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
-import styles from './SchedulePage.module.css'
+import styles from './facility-admin.module.css'
 
 const DAYS = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
 
