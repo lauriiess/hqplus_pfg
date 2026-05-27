@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { dashboardApi } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
-import styles from './FacilityReportsPage.module.css'
+import styles from './facility-admin.module.css'
 
 const COLORS = ['#2563EB','#16A34A','#D97706','#7C3AED','#DB2777']
 
