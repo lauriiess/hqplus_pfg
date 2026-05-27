@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../../services/api'
-import styles from './PatientsPage.module.css'
+import styles from './facility-admin.module.css'
 
 const PER_PAGE = 10
 const TYPES    = ['All','Regular','Senior Citizen','PWD','Pregnant','Priority']
