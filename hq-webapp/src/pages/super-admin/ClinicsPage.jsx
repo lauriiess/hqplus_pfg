@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { clinicsApi } from '../../services/api'
-import styles from './ClinicsPage.module.css'
+import styles from './super-admin.module.css'
 
 const STATUS_BADGE = { active: 'badge-green', inactive: 'badge-gray', maintenance: 'badge-warn' }
 
