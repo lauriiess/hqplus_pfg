@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import api from '../../services/api'
-import styles from './QueueOversightPage.module.css'
+import styles from './super-admin.module.css'
 
 const CLINICS_DEMO = [
   { _id: '1', name: 'Makati City Health Center',  activeQueue: 34, avgWait: 18, status: 'normal' },
