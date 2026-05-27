@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
-import styles from './QueuePage.module.css'
+import styles from './facility-admin.module.css'
 
 const STATUS_BADGE = { waiting:'badge-warn', serving:'badge-blue', done:'badge-green', completed:'badge-green', skipped:'badge-gray', no_show:'badge-red', cancelled:'badge-red' }
 
