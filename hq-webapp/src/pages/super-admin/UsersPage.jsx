@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import api from '../../services/api'
-import styles from './UsersPage.module.css'
+import styles from './super-admin.module.css'
 
 const ROLE_LABELS = {
   super_admin:    'System Administrator',
