@@ -1,41 +1,53 @@
+// Synced with hq-server: pending, confirmed, arrived, serving, completed, noShow, cancelled, rescheduled
 enum AppointmentStatus {
-  scheduled,
+  pending,
+  scheduled,   // alias — kept for local booking flow
   confirmed,
-  inProgress,
+  arrived,
+  serving,
+  inProgress,  // alias
   completed,
-  cancelled
+  noShow,
+  cancelled,
+  rescheduled,
 }
 
 enum DoctorSelectionMode { automatic, chooseDoctor }
 
 class Appointment {
   final String id;
+
+  // Server field names
+  final String clinicName;
+  final String department;   // service/department label shown in UI
+  final String doctor;       // doctor name shown in UI
+
+  // Legacy fields (kept for local booking)
   final String departmentId;
   final String departmentName;
-
   final String serviceName;
-
   final String doctorId;
   final String doctorName;
 
   final DateTime date;
   final String timeLabel;
-
   final String patientTypeLabel;
   final String? notes;
-
   final AppointmentStatus status;
 
   const Appointment({
     required this.id,
-    required this.departmentId,
-    required this.departmentName,
-    required this.serviceName,
-    required this.doctorId,
-    required this.doctorName,
+    this.clinicName = '',
+    this.department = '',
+    this.doctor = '',
+    this.departmentId = '',
+    this.departmentName = '',
+    this.serviceName = '',
+    this.doctorId = '',
+    this.doctorName = '',
     required this.date,
     required this.timeLabel,
-    required this.patientTypeLabel,
+    this.patientTypeLabel = 'Regular',
     required this.status,
     this.notes,
   });
@@ -48,6 +60,9 @@ class Appointment {
   }) {
     return Appointment(
       id: id,
+      clinicName: clinicName,
+      department: department,
+      doctor: doctor,
       departmentId: departmentId,
       departmentName: departmentName,
       serviceName: serviceName,
