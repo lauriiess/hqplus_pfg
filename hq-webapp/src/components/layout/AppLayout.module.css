@@ -6,105 +6,106 @@
   background: var(--bg);
 }
 
-/* ── Sidebar — Facility Admin (dark green) ── */
+/* ── Sidebar — Facility Admin (Green Gradient) ── */
 .sidebar {
-  width: var(--sidebar-w);
-  background: var(--sidebar-bg);       /* #1B4332 */
+  width: 256px; /* Matches w-64 */
+  background: linear-gradient(180deg, #175828 0%, #105E3F 50%, #0A424C 100%);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  border-right: 1px solid rgba(255,255,255,.06);
   overflow-y: auto;
 }
 
-/* ── Sidebar — Super Admin (dark purple/indigo) ── */
+/* ── Sidebar — Super Admin (Purple Gradient) ── */
 .superSidebar {
-  background: linear-gradient(180deg, #3B1FA3 0%, #2D1785 50%, #1E1060 100%);
+  background: linear-gradient(180deg, #6E269D 0%, #132D91 50%, #071035 100%);
 }
 
-/* Brand */
+/* Brand (Matches p-6 and border-white/10) */
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 20px 16px 18px;
-  border-bottom: 1px solid rgba(255,255,255,.08);
+  gap: 12px;
+  padding: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   flex-shrink: 0;
 }
-.brandText  { display: flex; flex-direction: column; gap: 1px; }
-.brandName  { font-size: 14px; font-weight: 800; color: #fff; letter-spacing: -.2px; }
-.brandRole  { font-size: 10px; font-weight: 500; color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .5px; }
+.brandText  { display: flex; flex-direction: column; }
+.brandName  { font-size: 16px; font-weight: 700; color: #fff; }
+.brandRole  { font-size: 12px; color: rgba(255, 255, 255, 0.7); }
 
-/* Nav */
+/* Nav (Matches flex-1 p-4 space-y-1) */
 .nav {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 14px 10px;
+  gap: 4px;
+  padding: 16px;
   overflow-y: auto;
 }
+
+/* Hide scrollbar (matches scrollbar-hide) */
+.nav::-webkit-scrollbar { display: none; }
+.nav { -ms-overflow-style: none; scrollbar-width: none; }
+
 .navItem {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
+  gap: 12px;
+  padding: 12px 16px; /* Matches py-3 px-4 */
   border-radius: 8px;
-  font-size: 13px;
-  font-weight: 500;
-  color: rgba(255,255,255,.65);
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
-  transition: all .15s;
+  transition: all 0.15s;
   white-space: nowrap;
 }
-.navItem:hover { background: rgba(255,255,255,.08); color: #fff; }
+.navItem:hover { background: rgba(255, 255, 255, 0.1); }
 
-/* Facility active: blue highlight */
+/* Active state for both roles (Matches bg-white/20 text-white font-medium) */
 .navActive {
-  background: var(--primary) !important;
+  background: rgba(255, 255, 255, 0.2) !important;
   color: #fff !important;
-  font-weight: 600;
+  font-weight: 500 !important;
 }
 
-/* Super admin active: lighter purple highlight */
-.superShell .navActive {
-  background: rgba(255,255,255,.18) !important;
-  color: #fff !important;
-}
-
-.navIcon  { flex-shrink: 0; display: flex; align-items: center; }
+.navIcon  { flex-shrink: 0; display: flex; align-items: center; color: rgba(255, 255, 255, 0.6); }
+.navActive .navIcon { color: #fff; }
 .navLabel { overflow: hidden; text-overflow: ellipsis; }
 
-/* Sidebar footer */
+/* Sidebar footer (Matches p-4 space-y-2 border-t border-white/10) */
 .sidebarFooter {
-  padding: 14px 12px;
-  border-top: 1px solid rgba(255,255,255,.08);
+  padding: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
-.userRow    { display: flex; align-items: center; gap: 10px; }
+.userRow    { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
 .userAvatar {
   width: 32px; height: 32px;
-  background: rgba(255,255,255,.15);
+  background: #ffffff;
   border-radius: 50%;
-  color: #fff; font-size: 13px; font-weight: 700;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.userInfo   { flex: 1; overflow: hidden; }
-.userName   { font-size: 12px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.userEmail  { font-size: 10px; color: rgba(255,255,255,.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.userInfo   { flex: 1; min-width: 0; overflow: hidden; }
+.userName   { font-size: 14px; font-weight: 500; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.userEmail  { font-size: 12px; color: rgba(255, 255, 255, 0.7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Logout Button (Matches bg-white text-red-600 hover:bg-red-50) */
 .logoutBtn {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 12px; border-radius: 7px;
-  font-size: 12px; font-weight: 600;
-  color: rgba(255,255,255,.6);
-  background: none; border: 1px solid rgba(255,255,255,.12);
-  cursor: pointer; transition: all .15s; width: 100%;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; border-radius: 8px;
+  font-size: 14px; font-weight: 500;
+  color: #dc2626; 
+  background: #ffffff;
+  border: none;
+  cursor: pointer; transition: all 0.15s; width: 100%;
 }
-.logoutBtn:hover { background: rgba(255,255,255,.1); color: #fff; }
+.logoutBtn:hover { background: #fef2f2; }
 
 /* ── Main area ── */
 .main {

@@ -159,14 +159,14 @@ export default function ChatbotAdminPage() {
             </button>
             <button className="btn btn-primary btn-sm" onClick={openAdd}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              + Add Response
+              Add Response
             </button>
           </div>
 
           {loading
             ? <div style={{padding:40,textAlign:'center',color:'var(--muted)'}}>Loading responses…</div>
             : filtered.length === 0
-              ? <div className="card" style={{padding:40,textAlign:'center',color:'var(--muted)'}}>No responses found. Click "+ Add Response" to create one.</div>
+              ? <div className="card" style={{padding:40,textAlign:'center',color:'var(--muted)'}}>No responses found. Click "Add Response" to create one.</div>
               : <div className={styles.faqList}>
                   {filtered.map(faq => (
                     <div key={faq._id} className={`card ${styles.faqCard}`}>

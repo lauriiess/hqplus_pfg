@@ -22,7 +22,6 @@ import UsersPage         from './pages/super-admin/UsersPage'
 import QueueOversightPage from './pages/super-admin/QueueOversightPage'
 import SystemReportsPage from './pages/super-admin/SystemReportsPage'
 import SystemConfigPage  from './pages/super-admin/SystemConfigPage'
-import RoleManagementPage   from './pages/super-admin/RoleManagementPage'
 import ClinicManagementPage from './pages/super-admin/ClinicManagementPage'
 
 // Shared
@@ -96,7 +95,6 @@ function AppRoutes() {
         <Route path="reports"   element={<SystemReportsPage />} />
         <Route path="chatbot"   element={<ChatbotAdminPage />} />
         <Route path="config"    element={<SystemConfigPage />} />
-        <Route path="roles"     element={<RoleManagementPage />} />
         <Route path="clinic-management" element={<ClinicManagementPage />} />
       </Route>
 

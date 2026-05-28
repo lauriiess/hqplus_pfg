@@ -60,13 +60,196 @@
 .staffActions { display: flex; gap: 6px; margin-top: auto; }
 
 /* ── AppointmentsPage ──────────────────────────────────────────── */
-.apptList    { display: flex; flex-direction: column; gap: 8px; }
-.apptCard    { padding: 16px 20px; display: flex; align-items: center; gap: 14px; }
-.apptTime    { font-size: 13px; font-weight: 700; color: var(--primary); white-space: nowrap; min-width: 56px; text-align: center; }
-.apptInfo    { flex: 1; }
-.apptName    { font-size: 13px; font-weight: 600; color: var(--text); }
-.apptService { font-size: 12px; color: var(--muted); }
-.apptActions { display: flex; gap: 5px; flex-shrink: 0; }
+.apptList { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 12px; 
+}
+
+.apptCard { 
+  padding: 16px 20px; 
+  display: flex; 
+  align-items: center; 
+  gap: 20px; 
+  background: var(--bg, #f8fafc);
+  border: 1px solid var(--border-lt, #e2e8f0);
+  border-radius: 12px;
+  transition: border-color 0.2s;
+}
+
+.apptCard:hover {
+  border-color: var(--border, #cbd5e1);
+}
+
+/* Left side identifier (Queue Number or Time Slot) */
+.queueNumber {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--primary);
+  min-width: 50px;
+  text-align: center;
+  background: #EFF6FF;
+  padding: 8px 0;
+  border-radius: 8px;
+}
+
+.apptTime { 
+  font-size: 14px; 
+  font-weight: 700; 
+  color: var(--primary); 
+  white-space: nowrap; 
+  min-width: 80px; 
+  text-align: center;
+  background: #EFF6FF;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+/* Middle Content (Patient Info) */
+.apptInfo { 
+  flex: 1; 
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.apptName { 
+  font-size: 15px; 
+  font-weight: 700; 
+  color: var(--text); 
+}
+
+.apptService { 
+  font-size: 12px; 
+  color: var(--muted); 
+  font-weight: 500;
+}
+
+/* Meta Data Grid (Wait times, Status Badges) */
+.apptMetaGrid {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+  border-left: 1px solid var(--border-lt);
+  border-right: 1px solid var(--border-lt);
+}
+
+.metaBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 60px;
+}
+
+.metaLabel {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metaVal {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* Right side actions */
+.apptActions { 
+  display: flex; 
+  gap: 8px; 
+  flex-shrink: 0; 
+  min-width: 140px; /* Prevents button jumping when states change */
+  justify-content: flex-end;
+}
+
+/* --- Controls & Segmented Tabs --- */
+.controlsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.segmentedTabs {
+  display: flex;
+  background: var(--bg, #f1f5f9);
+  border-radius: 10px;
+  padding: 4px;
+  gap: 2px;
+}
+
+.segTab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted, #64748b);
+  background: transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.segTab:hover {
+  color: var(--text, #0f172a);
+}
+
+.segTabActive {
+  background: #ffffff;
+  color: var(--primary, #2563EB);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.toolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .controlsRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .toolbarRight {
+    width: 100%;
+  }
+  .toolbarRight .search-bar {
+    flex: 1;
+    width: auto !important;
+  }
+}
+
+/* --- Responsive Adjustments --- */
+@media (max-width: 900px) {
+  .apptCard {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  
+  .apptMetaGrid {
+    border: none;
+    padding: 12px 0 0 0;
+    border-top: 1px solid var(--border-lt);
+    width: 100%;
+    justify-content: space-between;
+  }
+  
+  .apptActions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
 
 /* ── PatientsPage ──────────────────────────────────────────────── */
 .patientRow    { display: flex; align-items: center; gap: 12px; }
@@ -75,13 +258,110 @@
 .patientEmail  { font-size: 11px; color: var(--muted); }
 
 /* ── ServicesPage ──────────────────────────────────────────────── */
-.servicesGrid  { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
-.serviceCard   { padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; }
-.serviceName   { font-size: 14px; font-weight: 700; color: var(--text); }
-.serviceDesc   { font-size: 12px; color: var(--muted); line-height: 1.5; }
-.serviceDuration { font-size: 12px; color: var(--muted); }
-.serviceMeta   { display: flex; gap: 10px; font-size: 11px; color: var(--muted); margin-top: 2px; }
-.serviceActions{ display: flex; gap: 6px; margin-top: auto; }
+.layoutGrid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; align-items: start;}
+.columnWrap {  display: flex; flex-direction: column; gap: 24px;}
+.sectionBox {  padding: 24px; display: flex; flex-direction: column;}
+.sectionHeader { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border-lt, #e2e8f0);}
+.infoList { display: flex; flex-direction: column; gap: 16px;
+}
+
+.infoRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.infoLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.infoContent {
+  width: 100%;
+}
+
+.infoValue {
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 500;
+  padding: 6px 0; /* Align height with input visually */
+}
+
+/* --- Settings Rows --- */
+.settingRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-lt, #e2e8f0);
+}
+
+.settingRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.settingTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.settingSub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* --- Services List --- */
+.servicesWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.serviceLineItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg, #f8fafc);
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 8px;
+  transition: border-color 0.2s;
+}
+
+.serviceLineItem:hover {
+  border-color: var(--primary);
+}
+
+.serviceLineIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #DCFCE7; /* Light green */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.serviceLineText {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* --- Responsive --- */
+@media (max-width: 900px) {
+  .layoutGrid {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* ── SchedulePage ──────────────────────────────────────────────── */
 .grid       { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; align-items: start; }
