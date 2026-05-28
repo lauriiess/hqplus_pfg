@@ -1,251 +1,202 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
-import 'package:geolocator/geolocator.dart';
 import '../services/clinic_service.dart';
 import '../core/constants/app_colors.dart';
 import '../core/routes/app_routes.dart';
 import '../state/app_state.dart';
-// models
 import '../models/appointment_models.dart' as apt;
 import '../models/queue_models.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
-
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  String? expandedDepartmentId;
   int navIndex = 0;
+  List<Clinic> _nearbyClinics = [];
+  bool _clinicsLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClinics();
+    // Refresh queue & appointments every time dashboard is shown
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final s = context.read<AppState>();
+      s.fetchQueueStatus();
+      s.fetchAppointments();
+    });
+  }
+
+  Future<void> _loadClinics() async {
+    try {
+      final list = await ClinicService.getDirectory();
+      if (mounted) setState(() { _nearbyClinics = list; _clinicsLoading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _clinicsLoading = false);
+    }
+  }
 
   Future<void> _goToBookAppointment() async {
-    final result =
-        await Navigator.pushNamed(context, AppRoutes.bookAppointment);
+    final result = await Navigator.pushNamed(context, AppRoutes.bookAppointment);
     if (!mounted) return;
-
     if (result is apt.Appointment) {
       context.read<AppState>().addAppointment(result);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Appointment booked.")),
-      );
+        const SnackBar(content: Text('Appointment booked.')));
     }
   }
 
   Future<void> _goToJoinQueue() async {
     final result = await Navigator.pushNamed(context, AppRoutes.joinQueue);
     if (!mounted) return;
-
     if (result is QueueJoinResult) {
       context.read<AppState>().addQueueFromJoinResult(result);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Joined queue: ${result.queueNumber}")),
-      );
+        SnackBar(content: Text('Joined queue: ${result.queueNumber}')));
     }
+    // Always refresh after returning from queue join
+    if (mounted) context.read<AppState>().fetchQueueStatus();
   }
 
-  // picks the nearest upcoming appointment by (date + timeLabel).
-  apt.Appointment? _pickNearestAppointment(List<apt.Appointment> appts) {
+  apt.Appointment? _pickNearest(List<apt.Appointment> appts) {
     if (appts.isEmpty) return null;
-
-    DateTime toDateTime(apt.Appointment a) {
-      final base = DateTime(a.date.year, a.date.month, a.date.day);
-      final t = _parseTimeLabel(a.timeLabel);
-      return DateTime(base.year, base.month, base.day, t.hour, t.minute);
+    TimeOfDay parseTime(String label) {
+      final s = label.trim().toUpperCase();
+      final parts = s.split(RegExp(r'\s+'));
+      final hm = parts.first.split(':');
+      int h = int.tryParse(hm[0]) ?? 0;
+      final m = int.tryParse(hm.length > 1 ? hm[1] : '0') ?? 0;
+      final pm = parts.length > 1 && parts[1] == 'PM';
+      if (pm && h != 12) h += 12;
+      if (!pm && h == 12) h = 0;
+      return TimeOfDay(hour: h, minute: m);
     }
-
-    final sorted = [...appts]
-      ..sort((a, b) => toDateTime(a).compareTo(toDateTime(b)));
-    return sorted.first;
-  }
-
-  TimeOfDay _parseTimeLabel(String label) {
-    final s = label.trim().toUpperCase();
-    final parts = s.split(RegExp(r'\s+'));
-    final hm = parts.first.split(':');
-    int hour = int.tryParse(hm[0]) ?? 0;
-    final minute = int.tryParse(hm.length > 1 ? hm[1] : '0') ?? 0;
-    final isPm = parts.length > 1 && parts[1] == 'PM';
-
-    if (isPm && hour != 12) hour += 12;
-    if (!isPm && hour == 12) hour = 0;
-
-    return TimeOfDay(hour: hour, minute: minute);
-  }
-
-  // if AppState does not have activeQueues/queues, it will fall back to currentQueue only.
-  List<QueueEntry> _getActiveQueues(AppState appState) {
-    try {
-      final dynamic dyn = appState;
-      final list = dyn.activeQueues;
-      if (list is List<QueueEntry>) return list;
-    } catch (_) {}
-
-    try {
-      final dynamic dyn = appState;
-      final list = dyn.queues;
-      if (list is List<QueueEntry>) return list;
-    } catch (_) {}
-
-    final q = appState.currentQueue;
-    return q == null ? <QueueEntry>[] : <QueueEntry>[q];
+    DateTime toDT(apt.Appointment a) {
+      final t = parseTime(a.timeLabel);
+      return DateTime(a.date.year, a.date.month, a.date.day, t.hour, t.minute);
+    }
+    return ([...appts]..sort((a, b) => toDT(a).compareTo(toDT(b)))).first;
   }
 
   @override
   Widget build(BuildContext context) {
-    final appState = context.watch<AppState>();
-
-    // appointments
-    final appts = appState.upcomingAppointments;
-    final nextAppt = _pickNearestAppointment(appts);
-    final moreApptCount =
-        appts.isNotEmpty ? (appts.length - 1).clamp(0, 9999) : 0;
-
-    // queues (supports multiple + swipe)
-    final queues = _getActiveQueues(appState);
-    final hasQueues = queues.isNotEmpty;
-
-    final hasActiveStatus = appts.isNotEmpty || hasQueues;
+    final appState  = context.watch<AppState>();
+    final user      = appState.currentUser;
+    final queues    = appState.activeQueues;
+    final appts     = appState.upcomingAppointments;
+    final nextAppt  = _pickNearest(appts);
+    final moreCnt   = appts.isNotEmpty ? (appts.length - 1).clamp(0, 9999) : 0;
+    final hasStatus = queues.isNotEmpty || appts.isNotEmpty;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF6F7FB),
       body: SafeArea(
-        child: Column(
-          children: [
-            _Header(
-              subtitle: hasActiveStatus
-                  ? "Here’s your latest appointment/queue updates."
-                  : "How can we help you today?",
-              onBellTap: () {},
-            ),
-            Expanded(
+        child: Column(children: [
+          _Header(
+            userName: user?.fullName.split(' ').first ?? 'Patient',
+            subtitle: hasStatus
+                ? "Here's your latest updates."
+                : "How can we help you today?",
+            onBellTap: () => Navigator.pushNamed(context, AppRoutes.profile),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await Future.wait([
+                  appState.fetchQueueStatus(),
+                  appState.fetchAppointments(),
+                  _loadClinics(),
+                ]);
+              },
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _QuickActionCard(
-                            filled: true,
-                            icon: Icons.calendar_month_outlined,
-                            title: "Book Appointment",
-                            onTap: _goToBookAppointment,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _QuickActionCard(
-                            filled: false,
-                            icon: Icons.confirmation_number_outlined,
-                            title: "Get Queue Number",
-                            onTap: _goToJoinQueue,
-                          ),
-                        ),
-                      ],
-                    ),
+                    // ── Quick actions ──────────────────────────────
+                    Row(children: [
+                      Expanded(child: _QuickAction(
+                        filled: true, icon: Icons.calendar_month_outlined,
+                        title: 'Book Appointment', onTap: _goToBookAppointment,
+                      )),
+                      const SizedBox(width: 12),
+                      Expanded(child: _QuickAction(
+                        filled: false, icon: Icons.confirmation_number_outlined,
+                        title: 'Get Queue Number', onTap: _goToJoinQueue,
+                      )),
+                    ]),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 20),
 
-                    const Text(
-                      "Current Status",
-                      style: TextStyle(
-                        color: AppColors.textDark,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
+                    // ── Current Status ─────────────────────────────
+                    const Text('Current Status',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800,
+                          color: AppColors.textDark)),
                     const SizedBox(height: 10),
 
-                    // ✅ empty state
-                    if (!hasQueues && nextAppt == null)
-                      const _StatusEmptyCard()
+                    if (!hasStatus)
+                      _EmptyStatus(
+                        onBook: _goToBookAppointment,
+                        onQueue: _goToJoinQueue,
+                      )
                     else ...[
-                      // ✅ queues (swipeable + no overflow)
-                      if (hasQueues) ...[
-                        _SwipeQueuesSection(
-                          queues: queues,
-                          onViewAll: () => Navigator.pushNamed(
-                              context, AppRoutes.queueMonitoring),
-                        ),
-                      ],
-
-                      // ✅ spacing between queues and appointment
-                      if (hasQueues && nextAppt != null)
-                        const SizedBox(height: 12),
-
-                      // ✅ appointment (NOT LOST anymore)
+                      if (queues.isNotEmpty)
+                        ...queues.map((q) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _QueueCard(entry: q),
+                        )),
                       if (nextAppt != null) ...[
-                        _NextAppointmentCard(appt: nextAppt),
-                        if (moreApptCount > 0) ...[
+                        _AppointmentCard(appt: nextAppt),
+                        if (moreCnt > 0) ...[
                           const SizedBox(height: 10),
-                          InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => Navigator.pushNamed(
-                                context, AppRoutes.appointments),
-                            child: Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.border),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.event_note_outlined,
-                                      color: AppColors.primary),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      "You have $moreApptCount more upcoming appointment${moreApptCount == 1 ? "" : "s"}",
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.textDark,
-                                      ),
-                                    ),
-                                  ),
-                                  const Text(
-                                    "View all ›",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                          _MoreApptsBar(count: moreCnt,
+                            onTap: () => Navigator.pushNamed(context, AppRoutes.appointments)),
                         ],
                       ],
                     ],
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 20),
 
-                    const Text(
-                      "Nearby Clinics",
-                      style: TextStyle(
-                        color: AppColors.textDark,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    // ── Nearby Clinics ─────────────────────────────
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Nearby Clinics',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800,
+                              color: AppColors.textDark)),
+                        TextButton(
+                          onPressed: () => Navigator.pushNamed(context, AppRoutes.joinQueue),
+                          child: const Text('See all'),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
 
-                    const SizedBox(
-                      height: 440,
-                      child: Container(),
-                    ),
+                    if (_clinicsLoading)
+                      const Center(child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(),
+                      ))
+                    else if (_nearbyClinics.isEmpty)
+                      const _EmptyCard(message: 'No clinics available right now.')
+                    else
+                      Column(children: _nearbyClinics.take(5).map((c) =>
+                        _ClinicCard(clinic: c, onJoin: () async {
+                          await Navigator.pushNamed(context, AppRoutes.joinQueue,
+                            arguments: c);
+                          if (mounted) context.read<AppState>().fetchQueueStatus();
+                        })
+                      ).toList()),
                   ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ]),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: navIndex,
@@ -254,568 +205,335 @@ class _DashboardScreenState extends State<DashboardScreen> {
         unselectedItemColor: const Color(0xFF64748B),
         onTap: (i) {
           setState(() => navIndex = i);
-
-          if (i == 0) return;
-          if (i == 1) {
-            Navigator.pushNamed(context, AppRoutes.appointments);
-            return;
-          }
-          if (i == 2) {
-            Navigator.pushNamed(context, AppRoutes.chatBot);
-            return;
-          }
-          if (i == 3) {
-            Navigator.pushNamed(context, AppRoutes.queueMonitoring);
-            return;
-          }
-          if (i == 4) {
-            Navigator.pushNamed(context, AppRoutes.profile);
-            return;
+          switch (i) {
+            case 0: break;
+            case 1: Navigator.pushNamed(context, AppRoutes.appointments); break;
+            case 2: Navigator.pushNamed(context, AppRoutes.chatBot);      break;
+            case 3: Navigator.pushNamed(context, AppRoutes.queueMonitoring); break;
+            case 4: Navigator.pushNamed(context, AppRoutes.profile);      break;
           }
         },
         items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined), label: "Home"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today_outlined), label: "Appoinments"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline), label: "Chatbot"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.confirmation_number_outlined), label: "Queue"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline), label: "Profile"),
+          BottomNavigationBarItem(icon: Icon(Icons.home_outlined),
+            activeIcon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.calendar_today_outlined),
+            activeIcon: Icon(Icons.calendar_today), label: 'Appointments'),
+          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline),
+            activeIcon: Icon(Icons.chat_bubble), label: 'Chat'),
+          BottomNavigationBarItem(icon: Icon(Icons.queue_outlined),
+            activeIcon: Icon(Icons.queue), label: 'Queue'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline),
+            activeIcon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );
   }
 }
 
-/* --------------------------
-   HEADER
--------------------------- */
-class _Header extends StatelessWidget {
-  final VoidCallback onBellTap;
-  final String subtitle;
+// ── Widgets ────────────────────────────────────────────────────────
 
-  const _Header({
-    required this.onBellTap,
-    required this.subtitle,
-  });
+class _Header extends StatelessWidget {
+  final String userName;
+  final String subtitle;
+  final VoidCallback onBellTap;
+  const _Header({required this.userName, required this.subtitle, required this.onBellTap});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Welcome!",
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.textDark,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    color: AppColors.textMuted,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: onBellTap,
-            icon: const Icon(Icons.notifications_none),
-            color: AppColors.textDark,
-          ),
-        ],
-      ),
+      color: AppColors.primary,
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+      child: Row(children: [
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Hi, $userName!',
+            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 2),
+          Text(subtitle,
+            style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13)),
+        ])),
+        IconButton(
+          icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+          onPressed: onBellTap,
+        ),
+      ]),
     );
   }
 }
 
-/* --------------------------
-   QUICK ACTIONS
--------------------------- */
-class _QuickActionCard extends StatelessWidget {
+class _QuickAction extends StatelessWidget {
   final bool filled;
   final IconData icon;
   final String title;
   final VoidCallback onTap;
-
-  const _QuickActionCard({
-    required this.filled,
-    required this.icon,
-    required this.title,
-    required this.onTap,
-  });
+  const _QuickAction({required this.filled, required this.icon, required this.title, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final bg = filled ? AppColors.primary : Colors.white;
-    final fg = filled ? Colors.white : AppColors.primary;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
+    return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 14),
         decoration: BoxDecoration(
-          color: bg,
+          color: filled ? AppColors.primary : Colors.white,
           borderRadius: BorderRadius.circular(14),
-          border:
-              filled ? null : Border.all(color: AppColors.primary, width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.06),
-              blurRadius: 14,
-              offset: const Offset(0, 8),
-            )
-          ],
+          border: filled ? null : Border.all(color: AppColors.border),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
         ),
-        child: Column(
-          children: [
-            Icon(icon, color: fg, size: 28),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: fg,
-                fontWeight: FontWeight.w800,
-                fontSize: 12.5,
-              ),
-            )
-          ],
-        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, color: filled ? Colors.white : AppColors.primary, size: 26),
+          const SizedBox(height: 10),
+          Text(title,
+            style: TextStyle(
+              color: filled ? Colors.white : AppColors.textDark,
+              fontWeight: FontWeight.w700, fontSize: 13)),
+        ]),
       ),
     );
   }
 }
 
-/* --------------------------
-   STATUS CARDS
--------------------------- */
-
-class _StatusEmptyCard extends StatelessWidget {
-  const _StatusEmptyCard();
+class _EmptyStatus extends StatelessWidget {
+  final VoidCallback onBook;
+  final VoidCallback onQueue;
+  const _EmptyStatus({required this.onBook, required this.onQueue});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        color: Colors.white, borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(
-        children: [
-          const Text(
-            "No active appointments or queue\nnumbers",
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.textMuted,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            "Book an appointment or get a queue\nnumber to get started",
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textMuted.withOpacity(0.85)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// ✅ FIXED: swipeable queues section (responsive height + scrollable page content)
-class _SwipeQueuesSection extends StatefulWidget {
-  final List<QueueEntry> queues;
-  final VoidCallback onViewAll;
-
-  const _SwipeQueuesSection({
-    required this.queues,
-    required this.onViewAll,
-  });
-
-  @override
-  State<_SwipeQueuesSection> createState() => _SwipeQueuesSectionState();
-}
-
-class _SwipeQueuesSectionState extends State<_SwipeQueuesSection> {
-  final PageController _page = PageController(viewportFraction: 0.94);
-  int _index = 0;
-
-  @override
-  void dispose() {
-    _page.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final queues = widget.queues;
-    final count = queues.length;
-
-    // ✅ responsive height (prevents appointment looking "lost")
-    final pageHeight = 290.0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Text(
-              "Active Queues",
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                color: AppColors.textDark,
-              ),
-            ),
-            const Spacer(),
-            if (count > 1)
-              Text(
-                "${_index + 1}/$count",
-                style: const TextStyle(
-                  color: AppColors.textMuted,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            const SizedBox(width: 10),
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: widget.onViewAll,
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                child: Text(
-                  "View all ›",
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+      child: Column(children: [
+        Icon(Icons.inbox_outlined, size: 40, color: AppColors.textMuted),
         const SizedBox(height: 10),
-        SizedBox(
-          height: pageHeight,
-          child: PageView.builder(
-            controller: _page,
-            itemCount: count,
-            onPageChanged: (i) => setState(() => _index = i),
-            itemBuilder: (context, i) {
-              final q = queues[i];
-
-              // ✅ scrollable inside each page so it never overflows
-              return Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: SingleChildScrollView(
-                  physics: const BouncingScrollPhysics(),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _ActiveQueueCard(queue: q),
-                      const SizedBox(height: 10),
-                      _QueueAlertNotification(queue: q),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        if (count > 1) ...[
-          const SizedBox(height: 8),
-          _DotsIndicator(count: count, index: _index),
-        ],
-      ],
-    );
-  }
-}
-
-class _DotsIndicator extends StatelessWidget {
-  final int count;
-  final int index;
-
-  const _DotsIndicator({required this.count, required this.index});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(count, (i) {
-        final active = i == index;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: active ? 18 : 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: active ? AppColors.primary : AppColors.border,
-            borderRadius: BorderRadius.circular(999),
-          ),
-        );
-      }),
-    );
-  }
-}
-
-class _ActiveQueueCard extends StatelessWidget {
-  final QueueEntry queue;
-  const _ActiveQueueCard({required this.queue});
-
-  bool get isPriority => queue.queueType == QueueType.priority;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = isPriority ? const Color(0xFFF59E0B) : AppColors.primary;
-    final bg = accent.withOpacity(0.12);
-    final progress =
-        (queue.position / (queue.position + queue.totalAhead)).clamp(0.05, 1.0);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withOpacity(0.4)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.bolt, color: accent),
-              const SizedBox(width: 8),
-              Text(
-                "Active Queue",
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: accent,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: accent,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  isPriority ? "Priority" : "Regular",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              queue.queueNumber,
-              style: TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.w900,
-                color: accent,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Center(
-            child: Text(
-              queue.departmentName,
-              style: const TextStyle(
-                color: AppColors.textMuted,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _QueueMeta(label: "Position", value: "${queue.position}"),
-              _QueueMeta(
-                  label: "Est. Wait",
-                  value: "${queue.estimatedWaitTimeMinutes} mins"),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: Colors.white.withOpacity(0.6),
-              color: accent,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              "${queue.totalAhead} people ahead",
-              style: const TextStyle(
-                color: AppColors.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Center(
-            child: TextButton(
-              onPressed: () =>
-                  Navigator.pushNamed(context, AppRoutes.queueMonitoring),
-              child: Text(
-                "View Details ›",
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  color: accent,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _QueueMeta extends StatelessWidget {
-  final String label;
-  final String value;
-  const _QueueMeta({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: AppColors.textMuted,
-            fontSize: 11.5,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+        const Text('No active appointments or queues',
+          style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.textDark)),
         const SizedBox(height: 4),
-        Text(
-          value,
-          style: const TextStyle(
-            fontWeight: FontWeight.w900,
-            fontSize: 13,
-          ),
-        ),
-      ],
+        const Text('Book an appointment or get a queue number to get started.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(child: OutlinedButton(onPressed: onBook,
+            child: const Text('Book Appointment'))),
+          const SizedBox(width: 10),
+          Expanded(child: ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white),
+            onPressed: onQueue, child: const Text('Get Queue #'))),
+        ]),
+      ]),
     );
   }
 }
 
-class _NextAppointmentCard extends StatelessWidget {
-  final apt.Appointment appt;
-  const _NextAppointmentCard({required this.appt});
+class _QueueCard extends StatelessWidget {
+  final QueueEntry entry;
+  const _QueueCard({required this.entry});
 
-  String _datePill(DateTime d) => "${d.month}/${d.day}/${d.year}";
+  Color get _statusColor {
+    switch (entry.status) {
+      case QueueStatus.serving:   return const Color(0xFF16A34A);
+      case QueueStatus.confirmed: return const Color(0xFF2563EB);
+      case QueueStatus.waiting:   return const Color(0xFFD97706);
+      default:                    return const Color(0xFF6B7280);
+    }
+  }
+
+  String get _statusLabel {
+    switch (entry.status) {
+      case QueueStatus.serving:   return 'Being Served';
+      case QueueStatus.confirmed: return 'Confirmed';
+      case QueueStatus.waiting:   return 'Waiting';
+      case QueueStatus.pending:   return 'Pending';
+      default:                    return entry.status.name;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white, borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)],
+      ),
+      child: Column(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.06),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+          ),
+          child: Row(children: [
+            const Icon(Icons.confirmation_number_outlined, color: AppColors.primary, size: 18),
+            const SizedBox(width: 6),
+            Expanded(child: Text(
+              entry.clinicName.isNotEmpty ? entry.clinicName : 'Queue',
+              style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.primary))),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: _statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(99)),
+              child: Text(_statusLabel,
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _statusColor)),
+            ),
+          ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Queue #${entry.queueNumber}',
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800,
+                    color: AppColors.textDark)),
+              if (entry.serviceName.isNotEmpty)
+                Text(entry.serviceName,
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            ])),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text('${entry.position} ahead',
+                style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textDark)),
+              Text('~${entry.estimatedWait} min',
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            ]),
+          ]),
+        ),
+      ]),
+    );
+  }
+}
+
+class _AppointmentCard extends StatelessWidget {
+  final apt.Appointment appt;
+  const _AppointmentCard({required this.appt});
+
+  @override
+  Widget build(BuildContext context) {
+    final dateStr = '${appt.date.day}/${appt.date.month}/${appt.date.year}';
+    return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white, borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Next Appointment",
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              color: AppColors.textDark,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            appt.doctorName,
-            style: const TextStyle(fontWeight: FontWeight.w900),
-          ),
-          Text(
-            appt.departmentName,
-            style: const TextStyle(
-              color: AppColors.textMuted,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            children: [
-              _Pill(_datePill(appt.date)),
-              _Pill(appt.timeLabel),
-            ],
-          ),
-        ],
+      child: Row(children: [
+        Container(
+          width: 46, height: 46,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10)),
+          child: const Icon(Icons.event_outlined, color: AppColors.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(appt.clinicName.isNotEmpty ? appt.clinicName : appt.departmentName,
+            style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textDark)),
+          Text(appt.department.isNotEmpty ? appt.department : appt.serviceName,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+          Text('$dateStr  •  ${appt.timeLabel}',
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+        ])),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2563EB).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(99)),
+          child: Text(appt.status.name,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                color: Color(0xFF2563EB))),
+        ),
+      ]),
+    );
+  }
+}
+
+class _MoreApptsBar extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+  const _MoreApptsBar({required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity, padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border)),
+        child: Row(children: [
+          const Icon(Icons.event_note_outlined, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(child: Text(
+            'You have $count more upcoming appointment${count == 1 ? "" : "s"}',
+            style: const TextStyle(fontWeight: FontWeight.w800, color: AppColors.textDark))),
+          const Text('View all ›',
+            style: TextStyle(fontWeight: FontWeight.w900, color: AppColors.primary)),
+        ]),
       ),
     );
   }
 }
 
-class _Pill extends StatelessWidget {
-  final String text;
-  const _Pill(this.text);
+class _ClinicCard extends StatelessWidget {
+  final Clinic clinic;
+  final VoidCallback onJoin;
+  const _ClinicCard({required this.clinic, required this.onJoin});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(999),
+        color: Colors.white, borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)],
       ),
-      child: Text(
-        text,
-        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-      ),
+      child: Row(children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(10)),
+          child: const Icon(Icons.local_hospital_outlined, color: AppColors.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(clinic.name,
+            style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textDark)),
+          Text(clinic.address,
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+          if ((clinic.queueCount ?? 0) > 0)
+            Text('${clinic.queueCount} in queue  •  ~${clinic.waitMinutes ?? 0} min wait',
+              style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
+        ])),
+        TextButton(onPressed: onJoin, child: const Text('Join')),
+      ]),
     );
   }
 }
 
-/* --------------------------
-   DEPARTMENT GRID
--------------------------- */
+class _EmptyCard extends StatelessWidget {
+  final String message;
+  const _EmptyCard({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity, padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white, borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border)),
+      child: Text(message, textAlign: TextAlign.center,
+        style: const TextStyle(color: AppColors.textMuted)),
+    );
+  }
+}
