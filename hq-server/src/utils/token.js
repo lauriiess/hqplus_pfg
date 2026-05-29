@@ -1,18 +1,14 @@
 const jwt = require('jsonwebtoken');
 
 /**
- * Sign a JWT token for a user
- * @param {Object} user - Mongoose User document
- * @returns {string} signed JWT token
+ * Sign a JWT for a user. Throws if JWT_SECRET is not set.
  */
 const signToken = (user) => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error('JWT_SECRET environment variable is not set.');
   return jwt.sign(
-    {
-      id: user._id,
-      role: user.role,
-      clinicId: user.clinicId,
-    },
-    process.env.JWT_SECRET,
+    { id: user._id, role: user.role, clinicId: user.clinicId || null },
+    secret,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
 };
