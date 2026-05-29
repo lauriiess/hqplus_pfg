@@ -73,8 +73,6 @@ const getFacilityStats = async (req, res) => {
     if (!clinicId) return res.status(400).json({ message: 'clinicId is required.' });
 
     const cid = toId(clinicId);
-
-    // Fetch clinic to get service definitions
     const clinic = await Clinic.findById(cid);
 
     const [
@@ -86,7 +84,7 @@ const getFacilityStats = async (req, res) => {
       Appointment.countDocuments({ clinic: cid, appointmentDate: todayRange() }),
     ]);
 
-    // Avg wait time from today's queue entries
+    // Avg wait time
     const waitAgg = await QueueEntry.aggregate([
       { $match: { clinic: cid, joinedAt: todayRange(), estimatedWaitMinutes: { $gt: 0 } } },
       { $group: { _id: null, avg: { $avg: '$estimatedWaitMinutes' } } },
@@ -96,7 +94,7 @@ const getFacilityStats = async (req, res) => {
     // Weekly trend
     const weeklyTrend = await getWeeklyTrend(clinicId);
 
-    // Hourly breakdown for today
+    // Hourly breakdown
     const hourlyAgg = await QueueEntry.aggregate([
       { $match: { clinic: cid, joinedAt: todayRange() } },
       { $group: {
@@ -106,12 +104,12 @@ const getFacilityStats = async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
     const hourlyData = hourlyAgg.map(h => ({
-      hour: `${h._id % 12 || 12} ${h._id < 12 ? 'AM' : 'PM'}`,
+      hour:  `${h._id % 12 || 12} ${h._id < 12 ? 'AM' : 'PM'}`,
       count: h.count,
     }));
 
     // ── Service Distribution ──────────────────────────────────────
-    // First try: group today's queue entries by serviceName
+    // Try today's queue first grouped by serviceName
     const queueServiceAgg = await QueueEntry.aggregate([
       { $match: { clinic: cid, joinedAt: todayRange(), serviceName: { $exists: true, $ne: '' } } },
       { $group: { _id: '$serviceName', count: { $sum: 1 } } },
@@ -120,39 +118,43 @@ const getFacilityStats = async (req, res) => {
 
     let serviceDist = [];
     if (queueServiceAgg.length > 0) {
-      // Real data from today's queue
+      // Real queue data — use it
       serviceDist = queueServiceAgg.map(s => ({ name: s._id, count: s.count }));
     } else if (clinic?.services?.length > 0) {
-      // No queue today — use clinic's defined services with 0 counts
-      // This shows the services exist even when queue is empty
+      // No queue today — show clinic services with 0 so chart still renders
       serviceDist = clinic.services
-        .filter(s => s.isAvailable)
+        .filter(s => s.isAvailable && s.name)
         .map(s => ({ name: s.name, count: 0 }));
     }
 
-    // ── AI Recommendations ────────────────────────────────────────
-    // Generate real insights based on actual data
-    const insights = generateInsights({
-      todayPatients, activeQueue, completedToday, avgWaitTime,
-      todayAppointments, weeklyTrend, hourlyData, serviceDist,
-      clinic,
-    });
+    // Also expose as queueByService (alias) so older dashboard code still works
+    const queueByService = serviceDist;
 
     // Completion rate
     const completionRate = todayPatients > 0
       ? Math.round((completedToday / todayPatients) * 100)
       : 0;
 
-    // Recent queue activity
+    // Recent activity — last 10 queue entries with joinedAt
     const recentActivity = await QueueEntry.find({ clinic: cid })
-      .sort({ joinedAt: -1 }).limit(10)
+      .sort({ joinedAt: -1 })
+      .limit(10)
       .select('patientName serviceName status queueNumber joinedAt estimatedWaitMinutes');
+
+    // AI Insights
+    const insights = generateInsights({
+      todayPatients, activeQueue, completedToday, avgWaitTime,
+      todayAppointments, weeklyTrend, hourlyData, serviceDist, clinic,
+    });
 
     return res.json({
       todayPatients, activeQueue, completedToday,
       todayAppointments, avgWaitTime, completionRate,
-      weeklyTrend, hourlyData, serviceDist,
-      recentActivity, insights,
+      weeklyTrend, hourlyData,
+      serviceDist,      // used by analytics page
+      queueByService,   // used by dashboard (alias)
+      recentActivity,
+      insights,
       clinicName: clinic?.name || '',
     });
   } catch (err) {
@@ -161,127 +163,77 @@ const getFacilityStats = async (req, res) => {
   }
 };
 
-/**
- * Generate AI-style recommendations based on real clinic data
- */
 function generateInsights({ todayPatients, activeQueue, completedToday, avgWaitTime,
   todayAppointments, weeklyTrend, hourlyData, serviceDist, clinic }) {
   const insights = [];
 
-  // 1. Queue load insight
   if (activeQueue >= 10) {
-    insights.push({
-      type: 'warning',
-      title: 'High Queue Load',
-      desc: `${activeQueue} patients currently waiting or being served. Consider opening an additional service window to reduce wait times.`,
-    });
+    insights.push({ type:'warning', title:'High Queue Load',
+      desc:`${activeQueue} patients currently waiting or being served. Consider opening an additional service window.` });
   } else if (activeQueue === 0 && todayPatients === 0) {
-    insights.push({
-      type: 'info',
-      title: 'No Activity Today',
-      desc: 'No queue entries recorded today yet. The clinic is ready to receive patients.',
-    });
+    insights.push({ type:'info', title:'No Activity Today',
+      desc:'No queue entries recorded today yet. The clinic is ready to receive patients.' });
   } else if (activeQueue > 0) {
-    insights.push({
-      type: 'info',
-      title: 'Queue Active',
-      desc: `${activeQueue} patient(s) currently in queue. Operations are running normally.`,
-    });
+    insights.push({ type:'info', title:'Queue Active',
+      desc:`${activeQueue} patient(s) currently in queue. Operations are running normally.` });
   }
 
-  // 2. Wait time insight
   if (avgWaitTime > 45) {
-    insights.push({
-      type: 'warning',
-      title: 'Long Average Wait Time',
-      desc: `Average wait is ${avgWaitTime} minutes — above the recommended 30-minute threshold. Review staffing for peak hours.`,
-    });
+    insights.push({ type:'warning', title:'Long Average Wait Time',
+      desc:`Average wait is ${avgWaitTime} minutes — above the recommended 30-minute threshold.` });
   } else if (avgWaitTime > 0 && avgWaitTime <= 30) {
-    insights.push({
-      type: 'success',
-      title: 'Wait Time On Target',
-      desc: `Average wait time is ${avgWaitTime} minutes — within the ideal 30-minute target. Keep it up!`,
-    });
+    insights.push({ type:'success', title:'Wait Time On Target',
+      desc:`Average wait time is ${avgWaitTime} minutes — within the ideal 30-minute target.` });
   }
 
-  // 3. Completion rate insight
   if (todayPatients > 0) {
     const rate = Math.round((completedToday / todayPatients) * 100);
     if (rate >= 85) {
-      insights.push({
-        type: 'success',
-        title: 'Excellent Completion Rate',
-        desc: `${rate}% of today's patients have been successfully served — above the 85% benchmark.`,
-      });
+      insights.push({ type:'success', title:'Excellent Completion Rate',
+        desc:`${rate}% of today's patients have been successfully served.` });
     } else if (rate < 60) {
-      insights.push({
-        type: 'warning',
-        title: 'Low Completion Rate',
-        desc: `Only ${rate}% of today's patients completed their visit. Check for no-shows or cancellations.`,
-      });
+      insights.push({ type:'warning', title:'Low Completion Rate',
+        desc:`Only ${rate}% of today's patients completed their visit.` });
     }
   }
 
-  // 4. Peak hour insight from hourly data
   if (hourlyData.length > 0) {
     const peak = hourlyData.reduce((a, b) => a.count > b.count ? a : b);
     if (peak.count > 0) {
-      insights.push({
-        type: 'info',
-        title: `Peak Hour: ${peak.hour}`,
-        desc: `The busiest time today was ${peak.hour} with ${peak.count} patient(s). Allocate more staff during this window.`,
-      });
+      insights.push({ type:'info', title:`Peak Hour: ${peak.hour}`,
+        desc:`The busiest time today was ${peak.hour} with ${peak.count} patient(s).` });
     }
   }
 
-  // 5. Top service insight
   if (serviceDist.length > 0 && serviceDist[0].count > 0) {
     const top = serviceDist[0];
-    insights.push({
-      type: 'info',
-      title: `Most Requested: ${top.name}`,
-      desc: `${top.name} is today's most requested service with ${top.count} patient(s). Ensure adequate supplies and personnel.`,
-    });
+    insights.push({ type:'info', title:`Most Requested: ${top.name}`,
+      desc:`${top.name} is today's most requested service with ${top.count} patient(s).` });
   } else if (clinic?.services?.length > 0) {
-    // No queue yet — recommend based on defined services
-    const peakSvc = clinic.services.find(s => s.isAvailable) || clinic.services[0];
-    insights.push({
-      type: 'info',
-      title: 'Services Ready',
-      desc: `${clinic.services.filter(s=>s.isAvailable).length} services are active and ready. ${peakSvc?.name || ''} is available for walk-ins.`,
-    });
+    const avail = clinic.services.filter(s => s.isAvailable);
+    insights.push({ type:'info', title:'Services Ready',
+      desc:`${avail.length} service(s) are active and ready for patients.` });
   }
 
-  // 6. Weekly trend
   if (weeklyTrend.length >= 2) {
-    const last  = weeklyTrend[weeklyTrend.length - 1].count;
-    const prev  = weeklyTrend[weeklyTrend.length - 2].count;
+    const last = weeklyTrend[weeklyTrend.length-1].count;
+    const prev = weeklyTrend[weeklyTrend.length-2].count;
     if (last > prev && prev > 0) {
-      const pct = Math.round(((last - prev) / prev) * 100);
-      insights.push({
-        type: 'warning',
-        title: 'Volume Trending Up',
-        desc: `Today's volume is up ${pct}% vs yesterday. Prepare for higher demand tomorrow.`,
-      });
+      const pct = Math.round(((last-prev)/prev)*100);
+      insights.push({ type:'warning', title:'Volume Trending Up',
+        desc:`Today's volume is up ${pct}% vs yesterday.` });
     } else if (last < prev && last > 0) {
-      insights.push({
-        type: 'success',
-        title: 'Volume Trending Down',
-        desc: `Patient volume is lower than yesterday — a good opportunity to catch up on documentation and restocking.`,
-      });
+      insights.push({ type:'success', title:'Volume Trending Down',
+        desc:`Patient volume is lower than yesterday — good time to catch up on documentation.` });
     }
   }
 
-  // Always return at least 2 insights
   if (insights.length === 0) {
-    insights.push({
-      type: 'info',
-      title: 'System Ready',
-      desc: 'All systems operational. No anomalies detected for today.',
-    });
+    insights.push({ type:'info', title:'System Ready',
+      desc:'All systems operational. No anomalies detected for today.' });
   }
 
-  return insights.slice(0, 5); // max 5
+  return insights.slice(0, 5);
 }
 
 module.exports = { getSuperAdminStats, getFacilityStats };
