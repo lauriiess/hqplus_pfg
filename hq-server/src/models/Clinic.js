@@ -14,7 +14,10 @@ const ClinicSchema = new mongoose.Schema({
   contactNumber: { type: String, default: '' },
 
   // String array — e.g. ['Laboratory', 'Ultrasound']
-  services: [{ type: String }],
+  services: [{
+  serviceName: String,
+  duration: { type: Number, default: 30 },
+  enabled: { type: Boolean, default: true }}],
 
   status: {
     type: String,
