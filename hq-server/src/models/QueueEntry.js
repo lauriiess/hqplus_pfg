@@ -1,46 +1,61 @@
+/**
+ * QueueEntry model — one entry per patient per clinic visit
+ * Collection: queueentries (Mongoose default)
+ * Status flow: waiting → serving → done | no_show | skipped | cancelled
+ */
 const mongoose = require('mongoose');
 
 const QueueEntrySchema = new mongoose.Schema(
   {
-    // Updated to match your DB's actual fields
-    centerId: { type: String, required: true, index: true }, 
-    
-    // Legacy support: keep clinic as optional in case other parts of your app use it
-    clinic: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: 'Clinic', 
-      default: null 
+    // Primary clinic reference (ObjectId)
+    clinic: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Clinic',
+      required: true,
+      index: true,
     },
-    
-    patientId: { type: String, required: true },
-    patientName: { type: String, required: true },
+    // Patient user reference
+    patient: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    // Denormalized patient info (for quick display without populate)
+    patientName:  { type: String, required: true, trim: true },
     patientPhone: { type: String, default: '' },
+    patientType: {
+      type: String,
+      enum: ['Regular', 'Senior Citizen', 'PWD', 'Pregnant', 'Priority'],
+      default: 'Regular',
+    },
+    // Queue info
     queueNumber: { type: String, required: true },
     serviceName: { type: String, required: true },
-    serviceType: { type: String, default: '' },
-    
+    serviceId:   { type: mongoose.Schema.Types.ObjectId, default: null },
+    queueType:   { type: String, enum: ['Regular', 'Priority'], default: 'Regular' },
+    priority:    { type: Boolean, default: false },
+    notes:       { type: String, default: '' },
+    // Status
     status: {
       type: String,
-      enum: ['waiting', 'serving', 'done', 'no_show', 'skipped', 'cancelled'],
+      enum: ['waiting', 'serving', 'done', 'completed', 'no_show', 'skipped', 'cancelled'],
       default: 'waiting',
       index: true,
     },
-    
-    // Metrics tracked in your DB
-    estWaitingTime: { type: Number, default: 0 },
-    positionAhead: { type: Number, default: 0 },
-    joinedWhileOnTheWay: { type: Boolean, default: false },
-    notes: { type: String, default: '' },
+    // Timing
+    joinedAt:   { type: Date, default: Date.now, index: true },
+    calledAt:   { type: Date, default: null },
+    servedAt:   { type: Date, default: null },
+    completedAt:{ type: Date, default: null },
+    // Wait estimates
+    estimatedWaitMinutes: { type: Number, default: 0 },
+    positionAtJoin:       { type: Number, default: 0 },
   },
-  { 
-    collection: 'queuerecords', // CRITICAL: Matches the actual DB collection
-    timestamps: true            // Automatically creates createdAt and updatedAt
-  }
+  { timestamps: true }
 );
 
-// Auto-compute logic (if needed for status changes)
-QueueEntrySchema.pre('save', function (next) {
-  next();
-});
+// Index for fast today's queue lookup
+QueueEntrySchema.index({ clinic: 1, joinedAt: 1, status: 1 });
+QueueEntrySchema.index({ patient: 1, status: 1 });
 
 module.exports = mongoose.model('QueueEntry', QueueEntrySchema);
