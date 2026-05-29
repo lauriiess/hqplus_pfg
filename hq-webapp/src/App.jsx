@@ -8,7 +8,7 @@ import LoginPage from './pages/auth/LoginPage'
 // Facility Admin
 import FacilityDashboard  from './pages/facility-admin/FacilityDashboard'
 import QueuePage           from './pages/facility-admin/QueuePage'
-import AppointmentsPage    from './pages/facility-admin/AppointmentsPage'
+import QueueOversightPage  from './pages/facility-admin/QueueOversightPage'
 import SchedulePage        from './pages/facility-admin/SchedulePage'
 import StaffPage           from './pages/facility-admin/StaffPage'
 import PatientsPage        from './pages/facility-admin/PatientsPage'
@@ -68,7 +68,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard"    element={<FacilityDashboard />} />
         <Route path="queue"        element={<QueuePage />} />
-        <Route path="appointments" element={<AppointmentsPage />} />
+        <Route path="oversight"    element={<QueueOversightPage />} />
         <Route path="schedule"     element={<SchedulePage />} />
         <Route path="staff"        element={<StaffPage />} />
         <Route path="patients"     element={<PatientsPage />} />
