@@ -68,7 +68,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard"    element={<FacilityDashboard />} />
         <Route path="queue"        element={<QueuePage />} />
-        <Route path="oversight"    element={<SuperQueueOversightPage />} />
+        <Route path="oversight"    element={<QueueOversightPage />} />
         <Route path="schedule"     element={<SchedulePage />} />
         <Route path="staff"        element={<StaffPage />} />
         <Route path="patients"     element={<PatientsPage />} />
