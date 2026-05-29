@@ -4,77 +4,83 @@ import { dashboardApi } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import styles from './facility-admin.module.css'
 
-const DAY_LABELS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
-const SERVICE_COLORS = ['#2563EB','#16A34A','#D97706','#7C3AED','#0D9488']
-
 export default function FacilityDashboard() {
   const { user } = useAuth()
-  const [stats,    setStats]    = useState(null)
-  const [loading,  setLoading]  = useState(true)
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    dashboardApi.facility(user?.clinicId)
-      .then(r => setStats(r.data))
-      .catch(() => setStats(null))
+    if (!user?.clinicId) {
+      setLoading(false)
+      return
+    }
+
+    dashboardApi.facility(user.clinicId)
+      .then(r => {
+        // DEBUG: Check your browser console to see exactly what the server sends
+        console.log("DEBUG - API Response:", r.data) 
+        setStats(r.data)
+      })
+      .catch(err => {
+        console.error("DEBUG - API Fetch Failed:", err)
+        setStats(null)
+      })
       .finally(() => setLoading(false))
   }, [user?.clinicId])
 
-  // Build chart data from API or fall back to demo shapes
-  const queueByService = stats?.queueByService?.length
-    ? stats.queueByService.map(s => ({ name: s._id || s.name, count: s.count }))
-    : ['General Consultation','Pre-natal Care','Family Planning','Child Immunization','Wound Care']
-        .map((name,i) => ({ name, count: [18,9,7,11,5][i] }))
+  // Data processing: use empty array if stats are null
+  const queueByService = stats?.queueByService?.map(s => ({ 
+    name: s.name || s._id || 'Unknown', 
+    count: s.count || 0 
+  })) || [];
 
-  const weeklyTrend = stats?.weeklyTrend?.length
-    ? stats.weeklyTrend.map(w => ({ day: w.day, count: w.count }))
-    : DAY_LABELS.map((d,i) => ({ day: d, count: [185,210,195,250,260,160,125][i] }))
+  const weeklyTrend = stats?.weeklyTrend?.map(w => ({ 
+    day: w.day, 
+    count: w.count || 0 
+  })) || [];
 
-  const recentActivity = stats?.recentActivity?.length
-    ? stats.recentActivity
-    : [
-        { name: 'Juan Dela Cruz',  action: 'Checked in — General Consultation', time: '2 min ago' },
-        { name: 'Maria Santos',    action: 'Serving — Pre-natal Care',           time: '5 min ago' },
-        { name: 'Pedro Reyes',     action: 'Completed — Child Immunization',     time: '8 min ago' },
-      ]
-
-  const s = stats || {}
+  const recentActivity = stats?.recentActivity || [];
 
   return (
     <div className={styles.page}>
       {/* Stat cards */}
       <div className={styles.statsGrid}>
-        <StatCard label="Today's Patients"    value={loading ? '…' : (s.todayPatients ?? 0)}    sub="Checked in today"         color="blue" />
-        <StatCard label="Active Queue"         value={loading ? '…' : (s.activeQueue    ?? 0)}    sub="Currently waiting"        color="green" />
-        <StatCard label="Avg. Wait Time"       value={loading ? '…' : `${s.avgWaitTime  ?? 0}m`}  sub="Platform average"         color="orange" />
-        <StatCard label="Completed Today"      value={loading ? '…' : (s.completedToday ?? 0)}    sub="Served successfully"      color="purple" />
+        <StatCard label="Today's Patients" value={loading ? '…' : (stats?.todayPatients ?? 0)} sub="Checked in today" color="blue" />
+        <StatCard label="Active Queue" value={loading ? '…' : (stats?.activeQueue ?? 0)} sub="Currently waiting" color="green" />
+        <StatCard label="Avg. Wait Time" value={loading ? '…' : `${stats?.avgWaitTime ?? 0}m`} sub="Platform average" color="orange" />
+        <StatCard label="Completed Today" value={loading ? '…' : (stats?.completedToday ?? 0)} sub="Served successfully" color="purple" />
       </div>
 
       {/* Charts */}
       <div className={styles.chartsRow}>
         <div className={"card " + styles.chartCard}>
           <div className={styles.chartTitle}>Queue by Service</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={queueByService} margin={{ top: 8, right: 8, left: -18, bottom: 40 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-              <Bar dataKey="count" name="Queue Count" fill="#2563EB" radius={[4,4,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          {queueByService.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={queueByService} margin={{ top: 8, right: 8, left: -18, bottom: 40 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                <Bar dataKey="count" fill="#2563EB" radius={[4,4,0,0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <div style={{height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)'}}>No data available</div>}
         </div>
 
         <div className={"card " + styles.chartCard}>
           <div className={styles.chartTitle}>Weekly Patient Volume</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={weeklyTrend} margin={{ top: 8, right: 8, left: -18, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
-              <Line type="monotone" dataKey="count" stroke="#2563EB" strokeWidth={2.5} dot={{ r: 4 }} name="Patients" />
-            </LineChart>
-          </ResponsiveContainer>
+          {weeklyTrend.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={weeklyTrend} margin={{ top: 8, right: 8, left: -18, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                <Line type="monotone" dataKey="count" stroke="#2563EB" strokeWidth={2.5} dot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : <div style={{height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)'}}>No data available</div>}
         </div>
       </div>
 
@@ -82,16 +88,16 @@ export default function FacilityDashboard() {
       <div className={"card " + styles.activityCard}>
         <div className={styles.chartTitle}>Recent Activity</div>
         <div className={styles.activityList}>
-          {recentActivity.map((a, i) => (
+          {recentActivity.length > 0 ? recentActivity.map((a, i) => (
             <div key={i} className={styles.activityRow}>
               <div className={styles.activityDot} />
               <div className={styles.activityInfo}>
-                <div className={styles.activityName}>{a.patientName || a.name}</div>
-                <div className={styles.activityAction}>{a.action || `Queue #${a.queueNumber} — ${a.serviceName}`}</div>
+                <div className={styles.activityName}>{a.patientName}</div>
+                <div className={styles.activityAction}>{a.action}</div>
               </div>
-              <div className={styles.activityTime}>{a.time || 'just now'}</div>
+              <div className={styles.activityTime}>{a.time}</div>
             </div>
-          ))}
+          )) : <div style={{padding: 20, textAlign: 'center', color: 'var(--muted)'}}>No recent activity</div>}
         </div>
       </div>
     </div>

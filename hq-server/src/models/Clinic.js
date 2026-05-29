@@ -39,6 +39,6 @@ const ClinicSchema = new mongoose.Schema({
 
   facilityAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   isActive:      { type: Boolean, default: true },
-}, { timestamps: true });
+}, { timestamps: true, collection: 'centers' });
 
-module.exports = mongoose.model('Clinic', ClinicSchema);
+module.exports = mongoose.model('Clinic', ClinicSchema, 'centers');
