@@ -1,118 +1,128 @@
-import { useEffect, useState } from 'react'
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
-import { dashboardApi } from '../../services/api'
+import { useState, useEffect } from 'react'
+import {
+  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+} from 'recharts'
+import api from '../../services/api'
 import styles from './super-admin.module.css'
 
-const FALLBACK_MONTHLY = [
-  { month: 'Nov', patients: 3200, appointments: 810 },
-  { month: 'Dec', patients: 3800, appointments: 920 },
-  { month: 'Jan', patients: 4100, appointments: 980 },
-  { month: 'Feb', patients: 3900, appointments: 870 },
-  { month: 'Mar', patients: 4500, appointments: 1100 },
-  { month: 'Apr', patients: 4800, appointments: 1240 },
-]
-const FALLBACK_STATUS = [
-  { name: 'Completed', value: 68, color: '#16A34A' },
-  { name: 'Pending',   value: 18, color: '#D97706' },
-  { name: 'Cancelled', value: 9,  color: '#DC2626' },
-  { name: 'No Show',   value: 5,  color: '#6B7280' },
-]
+const COLORS = ['#2563EB','#16A34A','#D97706','#7C3AED','#DB2777','#0D9488']
 
 export default function SystemReportsPage() {
-  const [stats,  setStats]  = useState(null)
-  const [range,  setRange]  = useState('Last 30 Days')
-  const [loading,setLoading]= useState(true)
+  const [stats,   setStats]   = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    dashboardApi.superAdmin()
+    api.get('/api/dashboard/super-admin')
       .then(r => setStats(r.data))
       .catch(() => setStats(null))
       .finally(() => setLoading(false))
   }, [])
 
-  const monthly   = stats?.weeklyTrend
-    ? stats.weeklyTrend.map(w => ({ month: w.day, patients: w.count, appointments: Math.round(w.count * 0.22) }))
-    : FALLBACK_MONTHLY
-  const statusDist = FALLBACK_STATUS  // real breakdown requires aggregation — keeps as seeded demo
-  const totalVisits  = loading ? '…' : (stats?.todayQueue     ?? 0)
-  const totalAppts   = loading ? '…' : (stats?.todayAppointments ?? 0)
-  const totalClinics = loading ? '…' : (stats?.activeClinics  ?? 0)
-  const totalUsers   = loading ? '…' : (stats?.totalUsers     ?? 0)
+  const s = stats || {}
+  const weeklyTrend    = (s.weeklyTrend     || [])
+  const statusBreakdown= (s.statusBreakdown  || [])
 
   return (
     <div className={styles.page}>
-      <div className={styles.controls}>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-          <select className="dropdown-select" value={range} onChange={e=>setRange(e.target.value)}>
-            {['Last 7 Days','Last 30 Days','Last 3 Months','Last Year'].map(r=><option key={r}>{r}</option>)}
-          </select>
+      <div className={styles.header}>
+        <div>
+          <div className={styles.title}>System Reports</div>
+          <div className={styles.sub}>Platform-wide analytics and statistics</div>
         </div>
-        <button className="btn btn-outline btn-sm">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Export
-        </button>
       </div>
 
+      {/* Summary cards */}
       <div className={styles.statsRow}>
-        <MiniStat label="Today's Queue"         value={totalVisits}  sub="Platform-wide"  color="blue" />
-        <MiniStat label="Today's Appointments"  value={totalAppts}   sub="Across clinics" color="green" />
-        <MiniStat label="Active Clinics"         value={totalClinics} sub="Online now"     color="purple" />
-        <MiniStat label="Registered Users"       value={totalUsers}   sub="All roles"      color="teal" />
+        <div className={`card ${styles.statCard}`}>
+          <div className={styles.statLabel}>Total Clinics</div>
+          <div className={styles.statValue}>{loading ? '…' : (s.totalClinics ?? 0)}</div>
+          <div className={styles.statSub}>{s.activeClinics ?? 0} active</div>
+        </div>
+        <div className={`card ${styles.statCard}`}>
+          <div className={styles.statLabel}>Total Users</div>
+          <div className={styles.statValue}>{loading ? '…' : (s.totalUsers ?? 0)}</div>
+          <div className={styles.statSub}>{s.totalPatients ?? 0} patients</div>
+        </div>
+        <div className={`card ${styles.statCard}`}>
+          <div className={styles.statLabel}>Today's Queue</div>
+          <div className={styles.statValue}>{loading ? '…' : (s.todayQueue ?? 0)}</div>
+          <div className={styles.statSub}>Across all facilities</div>
+        </div>
+        <div className={`card ${styles.statCard}`}>
+          <div className={styles.statLabel}>Today's Appointments</div>
+          <div className={styles.statValue}>{loading ? '…' : (s.todayAppointments ?? 0)}</div>
+          <div className={styles.statSub}>Scheduled today</div>
+        </div>
       </div>
 
-      <div className={styles.row2}>
-        <div className={"card " + styles.chartCard}>
-          <div className={styles.chartTitle}>Weekly Patient Volume vs Appointments</div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthly} margin={{top:8,right:8,left:-18,bottom:4}}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="month" tick={{fontSize:11}} />
-              <YAxis tick={{fontSize:11}} />
-              <Tooltip contentStyle={{borderRadius:8,fontSize:12}} />
-              <Legend wrapperStyle={{fontSize:12}} />
-              <Bar dataKey="patients"     name="Patients"     fill="#2563EB" radius={[3,3,0,0]} />
-              <Bar dataKey="appointments" name="Appointments" fill="#10B981" radius={[3,3,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
+      {/* Charts */}
+      <div className={styles.chartsRow}>
+        <div className={`card ${styles.chartBox}`}>
+          <div className={styles.chartTitle}>Weekly Queue Volume (Last 7 Days)</div>
+          {weeklyTrend.length === 0
+            ? <Empty loading={loading} />
+            : <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={weeklyTrend} margin={{ top:8, right:8, left:-24, bottom:4 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fontSize:11 }} />
+                  <YAxis tick={{ fontSize:11 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ borderRadius:8, fontSize:12 }} />
+                  <Line type="monotone" dataKey="count" stroke="#2563EB" strokeWidth={2.5}
+                    dot={{ r:3, fill:'#2563EB', stroke:'#fff', strokeWidth:2 }} />
+                </LineChart>
+              </ResponsiveContainer>
+          }
         </div>
+        <div className={`card ${styles.chartBox}`}>
+          <div className={styles.chartTitle}>Queue Status Breakdown (Today)</div>
+          {statusBreakdown.length === 0
+            ? <Empty loading={loading} />
+            : <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={statusBreakdown} margin={{ top:8, right:8, left:-24, bottom:4 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="status" tick={{ fontSize:10 }} />
+                  <YAxis tick={{ fontSize:11 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ borderRadius:8, fontSize:12 }} />
+                  <Bar dataKey="count" radius={[4,4,0,0]}>
+                    {statusBreakdown.map((_,i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+          }
+        </div>
+      </div>
 
-        <div className={"card " + styles.pieCard}>
-          <div className={styles.chartTitle}>Appointment Status</div>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={statusDist} cx="50%" cy="50%" innerRadius={52} outerRadius={78} paddingAngle={3} dataKey="value">
-                {statusDist.map((d,i)=><Cell key={i} fill={d.color} />)}
-              </Pie>
-              <Tooltip contentStyle={{borderRadius:8,fontSize:12}} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className={styles.pieLegend}>
-            {statusDist.map(d=>(
-              <div key={d.name} className={styles.pieLegendRow}>
-                <span style={{width:9,height:9,borderRadius:'50%',background:d.color,display:'inline-block',flexShrink:0}} />
-                <span style={{flex:1,fontSize:12,color:'var(--muted)'}}>{d.name}</span>
-                <span style={{fontSize:12,fontWeight:700}}>{d.value}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Data table */}
+      <div className="card" style={{ padding:20 }}>
+        <div style={{ fontWeight:700, color:'var(--text)', marginBottom:14 }}>Queue Status Summary (Today)</div>
+        {statusBreakdown.length === 0
+          ? <div style={{ textAlign:'center', color:'var(--muted)', padding:'20px 0' }}>{loading ? 'Loading…' : 'No queue data today.'}</div>
+          : <table className="table">
+              <thead><tr><th>Status</th><th>Count</th><th>Share</th></tr></thead>
+              <tbody>
+                {statusBreakdown.map((row, i) => {
+                  const total = statusBreakdown.reduce((s,r)=>s+r.count,0)
+                  return (
+                    <tr key={row.status}>
+                      <td><span className="badge badge-blue">{row.status}</span></td>
+                      <td><strong>{row.count}</strong></td>
+                      <td>{total > 0 ? `${Math.round((row.count/total)*100)}%` : '—'}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+        }
       </div>
     </div>
   )
 }
 
-function MiniStat({ label, value, sub, color }) {
-  const bg = {blue:'#EFF6FF',green:'#ECFDF5',purple:'#F5F3FF',teal:'#F0FDFA'}
-  const fg = {blue:'#2563EB',green:'#16A34A',purple:'#7C3AED',teal:'#0D9488'}
+function Empty({ loading }) {
   return (
-    <div className={"card " + styles.miniStat}>
-      <div className={styles.miniDot} style={{background:bg[color],color:fg[color]}}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/></svg>
-      </div>
-      <div className={styles.miniValue}>{value}</div>
-      <div className={styles.miniLabel}>{label}</div>
-      <div className={styles.miniSub} style={{color:fg[color]}}>{sub}</div>
+    <div style={{ height:220, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--muted)', fontSize:13 }}>
+      {loading ? 'Loading…' : 'No data yet'}
     </div>
   )
 }
