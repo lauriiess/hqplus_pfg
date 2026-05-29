@@ -4,11 +4,12 @@
   "description": "HealthQueue+ API Server",
   "main": "src/index.js",
   "scripts": {
-    "start":    "node src/index.js",
-    "dev":      "nodemon src/index.js",
-    "seed":     "node src/seed/seed.js",
-    "env-check":"node -e \"require('dotenv').config();['MONGO_URI','JWT_SECRET','PORT'].forEach(k=>{if(!process.env[k])throw new Error('Missing env var: '+k)});console.log('All required env vars present.')\"",
-    "lint":     "eslint src/"
+    "start":   "node src/index.js",
+    "dev":     "nodemon src/index.js",
+    "seed":    "node src/seed/seed.js",
+    "migrate": "node src/migrate.js",
+    "env-check":"node -e \"require('dotenv').config();['MONGO_URI','JWT_SECRET','PORT'].forEach(k=>{if(!process.env[k])throw new Error('Missing: '+k)});console.log('✅ Env OK')\"",
+    "lint":    "eslint src/"
   },
   "dependencies": {
     "axios":              "^1.6.0",
