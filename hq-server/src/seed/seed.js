@@ -1,117 +1,216 @@
 /**
  * HealthQueue+ Master Seed Script
- * Run: npm run seed
- * Clears and repopulates: User, Clinic, Patient, Staff, FAQ, SystemConfig, QueueEntry, Appointment
+ * Run:  npm run seed
+ *
+ * What it does:
+ *  1. Clears all 9 collections
+ *  2. Creates clinics FIRST (needed for clinicId assignment)
+ *  3. Creates users, assigns clinicId to facility_admin + staff
+ *  4. Creates Patient profiles for patient-role users
+ *  5. Creates Staff profile for staff-role user
+ *  6. Seeds FAQs + SystemConfig
+ *  7. Verifies every password hash is correct before exiting
  */
 require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
 const mongoose   = require('mongoose');
-const User       = require('../models/User');
-const Clinic     = require('../models/Clinic');
-const Patient    = require('../models/Patient');
-const Staff      = require('../models/Staff');
-const FAQ        = require('../models/FAQ');
-const SystemConfig = require('../models/SystemConfig');
-const QueueEntry = require('../models/QueueEntry');
-const Appointment = require('../models/Appointment');
+const bcrypt     = require('bcryptjs');
 
-// ── Clinic data ───────────────────────────────────────────────────────────────
+const User         = require('../models/User');
+const Clinic       = require('../models/Clinic');
+const Patient      = require('../models/Patient');
+const Staff        = require('../models/Staff');
+const FAQ          = require('../models/FAQ');
+const SystemConfig = require('../models/SystemConfig');
+const QueueEntry   = require('../models/QueueEntry');
+const Appointment  = require('../models/Appointment');
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const svc = (name, desc, mins, avail = true) => ({
+  name, description: desc, durationMinutes: mins, isAvailable: avail,
+});
+
+// ── Clinic Data (all 8 branches) ──────────────────────────────────────────────
 const CLINICS = [
   {
     name: 'Hi-Precision Diagnostics - Congressional',
-    address: 'Congressional Ave, Project 8, Quezon City', city: 'Quezon City', province: 'Metro Manila', region: 'NCR',
-    latitude: 14.6625, longitude: 121.0335, contactNumber: '+63 2 8927-1111',
+    address: 'Congressional Ave, Project 8, Quezon City',
+    city: 'Quezon City', province: 'Metro Manila', region: 'NCR',
+    latitude: 14.6625, longitude: 121.0335,
+    contactNumber: '+63 2 8927-1111', email: 'congressional@hiprecision.com',
     facilityType: 'Diagnostic Center', operatingHours: '7:00 AM - 5:00 PM',
     status: 'open', maxQueueCapacity: 80, acceptsWalkIn: true, acceptsAppointment: true,
     baseWaitTimePerPerson: 10, queueLength: 0, currentWaitingTime: 0,
     services: [
-      { name: 'Laboratory', description: 'Blood, urine, and other lab tests', durationMinutes: 30, isAvailable: true },
-      { name: 'Ultrasound', description: 'Abdominal and pelvic ultrasound', durationMinutes: 45, isAvailable: true },
-      { name: 'Digital X-Ray', description: 'Chest and extremity X-Ray', durationMinutes: 20, isAvailable: true },
-      { name: 'ECG & Cardiology', description: 'Electrocardiogram services', durationMinutes: 30, isAvailable: true },
-      { name: 'Drug Testing', description: 'DOLE and pre-employment drug test', durationMinutes: 20, isAvailable: true },
-      { name: 'Executive Health', description: 'Comprehensive executive health package', durationMinutes: 120, isAvailable: true },
+      svc('Laboratory',      'CBC, urinalysis, blood chemistry, and other lab tests',           30),
+      svc('Ultrasound',      'Abdominal, pelvic, and OB ultrasound',                            45),
+      svc('Digital X-Ray',   'Chest, spine, and extremity digital radiography',                 20),
+      svc('ECG & Cardiology','12-lead ECG and cardiology screening',                             30),
+      svc('Drug Testing',    'DOLE-accredited pre-employment drug test',                         20),
+      svc('Executive Health','Comprehensive annual executive health screening package',          120),
     ],
-    peakHours: [{hour:'08:00',load:50},{hour:'10:00',load:85},{hour:'12:00',load:95},{hour:'14:00',load:60},{hour:'16:00',load:45}],
+    peakHours: [{hour:'08:00',load:50},{hour:'10:00',load:85},{hour:'12:00',load:95},{hour:'14:00',load:60},{hour:'16:00',load:45},{hour:'18:00',load:20}],
   },
   {
     name: 'Hi-Precision Diagnostics - Del Monte',
-    address: '442 Del Monte Ave, San Francisco del Monte, Quezon City', city: 'Quezon City', province: 'Metro Manila', region: 'NCR',
-    latitude: 14.6360, longitude: 121.0125, contactNumber: '+63 2 8374-1234',
+    address: '442 Del Monte Ave, San Francisco del Monte, Quezon City',
+    city: 'Quezon City', province: 'Metro Manila', region: 'NCR',
+    latitude: 14.6360, longitude: 121.0125,
+    contactNumber: '+63 2 8374-1234', email: 'delmonte@hiprecision.com',
     facilityType: 'Diagnostic Center', operatingHours: '7:00 AM - 5:00 PM',
     status: 'open', maxQueueCapacity: 60, acceptsWalkIn: true, acceptsAppointment: true,
     baseWaitTimePerPerson: 12, queueLength: 0, currentWaitingTime: 0,
     services: [
-      { name: 'Laboratory',      description: 'Complete blood count and chemistry panel', durationMinutes: 30, isAvailable: true },
-      { name: 'Ultrasound',      description: 'OB and abdominal ultrasound', durationMinutes: 45, isAvailable: true },
-      { name: 'Digital X-Ray',   description: 'Chest X-Ray PA view', durationMinutes: 20, isAvailable: true },
-      { name: 'Executive Health',description: 'Annual executive health screening', durationMinutes: 120, isAvailable: true },
-      { name: 'Mammography & Pap Smear', description: "Women's health screening", durationMinutes: 60, isAvailable: true },
+      svc('Laboratory',            'Hematology, chemistry, and serology tests',          30),
+      svc('Ultrasound',            'OB, abdominal, and thyroid ultrasound',               45),
+      svc('Digital X-Ray',         'Chest PA and lateral views',                          20),
+      svc('Executive Health',      'Annual executive health package',                    120),
+      svc('Mammography & Pap Smear',"Women's preventive health screening",                60),
     ],
-    peakHours: [{hour:'08:00',load:40},{hour:'10:00',load:60},{hour:'12:00',load:70},{hour:'14:00',load:50},{hour:'16:00',load:80}],
+    peakHours: [{hour:'08:00',load:40},{hour:'10:00',load:60},{hour:'12:00',load:70},{hour:'14:00',load:50},{hour:'16:00',load:80},{hour:'18:00',load:30}],
   },
   {
     name: 'Hi-Precision Diagnostics - Quezon Avenue',
-    address: 'Quezon Ave corner G. Araneta Ave, Quezon City', city: 'Quezon City', province: 'Metro Manila', region: 'NCR',
-    latitude: 14.6225, longitude: 121.0110, contactNumber: '+63 2 8741-7777',
+    address: 'Quezon Ave corner G. Araneta Ave, Quezon City',
+    city: 'Quezon City', province: 'Metro Manila', region: 'NCR',
+    latitude: 14.6225, longitude: 121.0110,
+    contactNumber: '+63 2 8741-7777', email: 'quezonavenue@hiprecision.com',
     facilityType: 'Diagnostic Center', operatingHours: '7:00 AM - 6:00 PM',
     status: 'open', maxQueueCapacity: 100, acceptsWalkIn: true, acceptsAppointment: true,
     baseWaitTimePerPerson: 15, queueLength: 0, currentWaitingTime: 0,
     services: [
-      { name: 'Laboratory',      description: 'Full laboratory panel', durationMinutes: 30, isAvailable: true },
-      { name: 'Ultrasound',      description: 'All types of ultrasound', durationMinutes: 45, isAvailable: true },
-      { name: 'Digital X-Ray',   description: 'Digital radiography', durationMinutes: 20, isAvailable: true },
-      { name: 'ECG & Cardiology',description: 'ECG and stress test', durationMinutes: 30, isAvailable: true },
-      { name: 'CT Scan & MRI',   description: 'Advanced imaging services', durationMinutes: 60, isAvailable: true },
-      { name: 'Executive Health',description: 'Comprehensive health package', durationMinutes: 120, isAvailable: true },
-      { name: 'Mammography & Pap Smear', description: "Women's preventive health", durationMinutes: 60, isAvailable: true },
+      svc('Laboratory',             'Full laboratory panel including blood chemistry',    30),
+      svc('Ultrasound',             'All types of diagnostic ultrasound',                 45),
+      svc('Digital X-Ray',          'Full-body digital radiography',                      20),
+      svc('ECG & Cardiology',       'ECG, stress test, and Holter monitoring',            30),
+      svc('CT Scan & MRI',          'Advanced cross-sectional imaging',                   60),
+      svc('Executive Health',       'Comprehensive executive health screening',           120),
+      svc('Mammography & Pap Smear',"Women's preventive care package",                    60),
     ],
-    peakHours: [{hour:'08:00',load:30},{hour:'10:00',load:55},{hour:'12:00',load:65},{hour:'14:00',load:80},{hour:'16:00',load:55}],
+    peakHours: [{hour:'08:00',load:30},{hour:'10:00',load:55},{hour:'12:00',load:65},{hour:'14:00',load:80},{hour:'16:00',load:55},{hour:'18:00',load:25}],
   },
   {
     name: 'Hi-Precision Diagnostics - V. Luna',
-    address: 'V. Luna Road corner Malumanay St, Diliman, Quezon City', city: 'Quezon City', province: 'Metro Manila', region: 'NCR',
-    latitude: 14.6335, longitude: 121.0495, contactNumber: '+63 2 8920-5555',
+    address: 'V. Luna Road corner Malumanay St, Diliman, Quezon City',
+    city: 'Quezon City', province: 'Metro Manila', region: 'NCR',
+    latitude: 14.6335, longitude: 121.0495,
+    contactNumber: '+63 2 8920-5555', email: 'vluna@hiprecision.com',
     facilityType: 'Diagnostic Center', operatingHours: '7:00 AM - 5:00 PM',
     status: 'open', maxQueueCapacity: 60, acceptsWalkIn: true, acceptsAppointment: true,
     baseWaitTimePerPerson: 8, queueLength: 0, currentWaitingTime: 0,
     services: [
-      { name: 'Laboratory',      description: 'Hematology and chemistry', durationMinutes: 30, isAvailable: true },
-      { name: 'Digital X-Ray',   description: 'Chest and bone X-ray', durationMinutes: 20, isAvailable: true },
-      { name: 'ECG & Cardiology',description: '12-lead ECG', durationMinutes: 30, isAvailable: true },
-      { name: 'Drug Testing',    description: 'Pre-employment drug test', durationMinutes: 20, isAvailable: true },
+      svc('Laboratory',      'Hematology and blood chemistry',                30),
+      svc('Digital X-Ray',   'Chest and bone X-ray',                          20),
+      svc('ECG & Cardiology','12-lead ECG and cardiac screening',              30),
+      svc('Drug Testing',    'Pre-employment and random drug testing',         20),
     ],
-    peakHours: [{hour:'08:00',load:75},{hour:'10:00',load:90},{hour:'12:00',load:100},{hour:'14:00',load:80},{hour:'16:00',load:85}],
+    peakHours: [{hour:'08:00',load:75},{hour:'10:00',load:90},{hour:'12:00',load:100},{hour:'14:00',load:80},{hour:'16:00',load:85},{hour:'18:00',load:60}],
+  },
+  {
+    name: 'Hi-Precision Diagnostics - Banawe',
+    address: 'Banawe St. corner N.S. Amoranto, Quezon City',
+    city: 'Quezon City', province: 'Metro Manila', region: 'NCR',
+    latitude: 14.6310, longitude: 121.0020,
+    contactNumber: '+63 2 8740-9999', email: 'banawe@hiprecision.com',
+    facilityType: 'Diagnostic Center', operatingHours: '7:00 AM - 5:00 PM',
+    status: 'open', maxQueueCapacity: 70, acceptsWalkIn: true, acceptsAppointment: true,
+    baseWaitTimePerPerson: 10, queueLength: 0, currentWaitingTime: 0,
+    services: [
+      svc('Laboratory',      'CBC, urinalysis, and chemistry',        30),
+      svc('Ultrasound',      'Abdominal and pelvic ultrasound',        45),
+      svc('Digital X-Ray',   'Standard chest and bone X-ray',          20),
+      svc('ECG & Cardiology','ECG and cardiovascular screening',        30),
+      svc('Executive Health','Annual health screening package',        120),
+    ],
+    peakHours: [{hour:'08:00',load:45},{hour:'10:00',load:70},{hour:'12:00',load:80},{hour:'14:00',load:60},{hour:'16:00',load:75},{hour:'18:00',load:40}],
+  },
+  {
+    name: 'Hi-Precision Diagnostics - Retiro',
+    address: 'N.S. Amoranto Sr. St, Quezon City',
+    city: 'Quezon City', province: 'Metro Manila', region: 'NCR',
+    latitude: 14.6315, longitude: 121.0080,
+    contactNumber: '+63 2 8415-8888', email: 'retiro@hiprecision.com',
+    facilityType: 'Diagnostic Center', operatingHours: '7:00 AM - 5:00 PM',
+    status: 'open', maxQueueCapacity: 50, acceptsWalkIn: true, acceptsAppointment: true,
+    baseWaitTimePerPerson: 9, queueLength: 0, currentWaitingTime: 0,
+    services: [
+      svc('Laboratory',            'Standard blood and urine lab tests',       30),
+      svc('Ultrasound',            'OB and general ultrasound',                 45),
+      svc('Digital X-Ray',         'Chest and extremity X-ray',                 20),
+      svc('Mammography & Pap Smear',"Women's health screening",                 60),
+    ],
+    peakHours: [{hour:'08:00',load:35},{hour:'10:00',load:50},{hour:'12:00',load:75},{hour:'14:00',load:55},{hour:'16:00',load:60},{hour:'18:00',load:30}],
+  },
+  {
+    name: 'Hi-Precision Diagnostics - Congressional Extension',
+    address: 'Congressional Ave Extension, Miranila, Quezon City',
+    city: 'Quezon City', province: 'Metro Manila', region: 'NCR',
+    latitude: 14.6685, longitude: 121.0620,
+    contactNumber: '+63 2 8352-2222', email: 'congressionalext@hiprecision.com',
+    facilityType: 'Diagnostic Center', operatingHours: '7:00 AM - 5:00 PM',
+    status: 'open', maxQueueCapacity: 60, acceptsWalkIn: true, acceptsAppointment: true,
+    baseWaitTimePerPerson: 11, queueLength: 0, currentWaitingTime: 0,
+    services: [
+      svc('Laboratory',      'Complete blood count and chemistry panel',  30),
+      svc('Digital X-Ray',   'Digital chest and bone radiography',         20),
+      svc('ECG & Cardiology','ECG screening',                              30),
+      svc('Executive Health','Comprehensive health package',              120),
+    ],
+    peakHours: [{hour:'08:00',load:40},{hour:'10:00',load:65},{hour:'12:00',load:85},{hour:'14:00',load:70},{hour:'16:00',load:50},{hour:'18:00',load:20}],
+  },
+  {
+    name: 'Hi-Precision Diagnostics - East Avenue',
+    address: 'East Avenue, Diliman, Quezon City',
+    city: 'Quezon City', province: 'Metro Manila', region: 'NCR',
+    latitude: 14.6405, longitude: 121.0450,
+    contactNumber: '+63 2 8928-8888', email: 'eastavenue@hiprecision.com',
+    facilityType: 'Diagnostic Center', operatingHours: '7:00 AM - 6:00 PM',
+    status: 'open', maxQueueCapacity: 80, acceptsWalkIn: true, acceptsAppointment: true,
+    baseWaitTimePerPerson: 14, queueLength: 0, currentWaitingTime: 0,
+    services: [
+      svc('Laboratory',    'Full laboratory workup',                          30),
+      svc('Ultrasound',    'All types of ultrasound',                          45),
+      svc('Digital X-Ray', 'Digital radiography — chest, spine, extremities',  20),
+      svc('CT Scan & MRI', 'Advanced cross-sectional imaging services',         60),
+      svc('Executive Health','Comprehensive executive health package',         120),
+    ],
+    peakHours: [{hour:'08:00',load:50},{hour:'10:00',load:80},{hour:'12:00',load:90},{hour:'14:00',load:75},{hour:'16:00',load:60},{hour:'18:00',load:45}],
   },
 ];
 
-// ── Users ──────────────────────────────────────────────────────────────────────
-const BASE_USERS = [
-  { fullName: 'Super Admin',    email: 'superadmin@hqplus.com',    phone: '+639000000001', password: 'Admin@1234',   role: 'super_admin',    isVerified: true },
-  { fullName: 'Facility Admin', email: 'facilityadmin@hqplus.com', phone: '+639000000002', password: 'Admin@1234',   role: 'facility_admin', isVerified: true },
-  { fullName: 'Staff Member',   email: 'staff@hqplus.com',         phone: '+639000000003', password: 'Staff@1234',   role: 'staff',          isVerified: true },
-  { fullName: 'Ana Reyes',      email: 'ana.reyes@gmail.com',      phone: '+639171111111', password: 'Patient@123',  role: 'patient',        isVerified: true },
-  { fullName: 'Carlos Buenaventura', email: 'carlos.b@gmail.com',  phone: '+639172222222', password: 'Patient@123',  role: 'patient',        isVerified: true },
-  { fullName: 'Rosa Mendoza',   email: 'rosa.m@gmail.com',         phone: '+639173333333', password: 'Patient@123',  role: 'patient',        isVerified: true },
+// ── Users ─────────────────────────────────────────────────────────────────────
+const USERS = [
+  { fullName: 'Super Admin',    email: 'superadmin@hqplus.com',      phone: '+639000000001', password: 'Admin@1234',   role: 'super_admin',    isVerified: true, isActive: true },
+  { fullName: 'Facility Admin', email: 'facilityadmin@hqplus.com',   phone: '+639000000002', password: 'Admin@1234',   role: 'facility_admin', isVerified: true, isActive: true },
+  { fullName: 'Staff Member',   email: 'staff@hqplus.com',           phone: '+639000000003', password: 'Staff@1234',   role: 'staff',          isVerified: true, isActive: true },
+  { fullName: 'Juan Dela Cruz', email: 'patient@hqplus.com',         phone: '+639171234567', password: 'Patient@1234', role: 'patient',        isVerified: true, isActive: true },
+  { fullName: 'Ana Reyes',      email: 'ana.reyes@gmail.com',        phone: '+639171111111', password: 'Patient@123',  role: 'patient',        isVerified: true, isActive: true },
+  { fullName: 'Rosa Mendoza',   email: 'rosa.m@gmail.com',           phone: '+639173333333', password: 'Patient@123',  role: 'patient',        isVerified: true, isActive: true },
 ];
 
-// ── FAQ data ───────────────────────────────────────────────────────────────────
+// ── FAQs ──────────────────────────────────────────────────────────────────────
 const FAQS = [
-  { question: 'How do I join a queue?',              answer: 'Open the app, tap "Get Queue Number", select a clinic and service, then confirm.',           category: 'queue' },
-  { question: 'Can I book an appointment online?',   answer: 'Yes. Tap "Book Appointment" from the dashboard, choose a clinic, service, date and time.',   category: 'appointment' },
-  { question: 'How do I cancel my queue number?',    answer: 'Go to Queue Status and tap the Cancel button next to your active queue entry.',              category: 'queue' },
-  { question: 'What are the operating hours?',       answer: 'Most Hi-Precision branches are open from 7:00 AM to 5:00 PM, Monday to Saturday.',           category: 'general' },
-  { question: 'How does AI Suggest work?',           answer: 'AI Suggest scores nearby clinics by current queue load and estimated wait time to recommend the fastest option.', category: 'general' },
-  { question: 'Can I have multiple queue entries?',  answer: 'No. You can only have one active queue entry per clinic per day.',                           category: 'queue' },
-  { question: 'How accurate is the estimated wait?', answer: 'Wait time is estimated based on current queue length and historical service duration per patient.', category: 'queue' },
+  { question: 'How do I join the queue?',              answer: 'Open the app, select your clinic and service, then tap "Get Queue Number". You\'ll receive a ticket with your position and estimated wait time.',                                                category: 'queue' },
+  { question: 'How do I book an appointment?',         answer: 'Tap "Book Appointment" on the dashboard, select your preferred clinic, service, date, and time slot.',                                                                                        category: 'appointment' },
+  { question: 'Can I cancel my appointment?',          answer: 'Yes. Go to the Appointments tab, find your booking, and tap "Cancel Appointment".',                                                                                                           category: 'appointment' },
+  { question: 'What is priority queue?',               answer: 'Priority queues are for senior citizens (60+), persons with disabilities (PWD), and pregnant women. Please present a valid ID at the clinic.',                                                 category: 'queue' },
+  { question: 'How accurate is the wait time?',        answer: 'Wait times are estimated based on current queue length and average service time. Actual times may vary.',                                                                                      category: 'queue' },
+  { question: 'What services are available?',          answer: 'Hi-Precision Diagnostics offers: Laboratory, Ultrasound, Digital X-Ray, ECG & Cardiology, CT Scan & MRI, Drug Testing, Executive Health, and Mammography & Pap Smear.',                      category: 'general' },
+  { question: 'Which branches are open?',              answer: 'All 8 Hi-Precision branches in Quezon City are open: Congressional, Del Monte, Quezon Avenue, V. Luna, Banawe, Retiro, Congressional Extension, and East Avenue.',                           category: 'general' },
+  { question: 'How do I contact a branch?',            answer: 'Each branch contact number is shown in the clinic details on the app dashboard.',                                                                                                              category: 'general' },
+  { question: 'How does AI Suggest work?',             answer: 'AI Suggest scores nearby clinics by current queue load and estimated wait time to recommend the fastest available option near you.',                                                           category: 'general' },
+  { question: 'Can I have multiple queue numbers?',    answer: 'No. You can only have one active queue entry per clinic per day.',                                                                                                                             category: 'queue' },
 ];
 
-// ── Main seed function ────────────────────────────────────────────────────────
-const seed = async () => {
-  await mongoose.connect(process.env.MONGO_URI);
-  console.log('✅ Connected to MongoDB');
+// ── Main ──────────────────────────────────────────────────────────────────────
+async function seed() {
+  const uri = process.env.MONGO_URI;
+  if (!uri) { console.error('❌ MONGO_URI not set in .env'); process.exit(1); }
 
-  // Clear all collections
-  console.log('🗑  Clearing collections…');
+  await mongoose.connect(uri);
+  console.log('✅ MongoDB connected\n');
+
+  // ── 1. Clear all collections ────────────────────────────────────
+  process.stdout.write('🗑  Clearing collections… ');
   await Promise.all([
     User.deleteMany({}),
     Clinic.deleteMany({}),
@@ -122,29 +221,30 @@ const seed = async () => {
     FAQ.deleteMany({}),
     SystemConfig.deleteMany({}),
   ]);
+  console.log('done\n');
 
-  // Create clinics
+  // ── 2. Create clinics FIRST ─────────────────────────────────────
   console.log('🏥 Seeding clinics…');
   const createdClinics = await Clinic.insertMany(CLINICS);
-  const mainClinic     = createdClinics[0];
-  console.log(`  ✓ ${createdClinics.length} clinics created`);
+  createdClinics.forEach(c => console.log(`  ✓ ${c.name}`));
+  const mainClinic = createdClinics[0]; // Congressional — used for facility_admin + staff
 
-  // Create users
-  console.log('👤 Seeding users…');
+  // ── 3. Create users with clinicId already set ───────────────────
+  console.log('\n👤 Seeding users…');
   const createdUsers = [];
-  for (const u of BASE_USERS) {
-    const role      = u.role;
-    const clinicId  = role === 'facility_admin' ? mainClinic._id
-                    : role === 'staff'           ? mainClinic._id
-                    : null;
-    const user = await User.create({ ...u, clinicId, isActive: true });
+  for (const u of USERS) {
+    const clinicId =
+      u.role === 'facility_admin' ? mainClinic._id :
+      u.role === 'staff'          ? mainClinic._id : null;
+    const user = await User.create({ ...u, clinicId });
     createdUsers.push(user);
-    console.log(`  ✓ ${user.role}: ${user.email}`);
+    console.log(`  ✓ [${user.role}] ${user.email}`);
   }
 
-  // Create patient profiles for patient-role users
-  console.log('🩺 Seeding patient profiles…');
-  for (const u of createdUsers.filter(u => u.role === 'patient')) {
+  // ── 4. Patient profiles ─────────────────────────────────────────
+  console.log('\n🩺 Seeding patient profiles…');
+  const patientUsers = createdUsers.filter(u => u.role === 'patient');
+  for (const u of patientUsers) {
     await Patient.create({
       user:        u._id,
       fullName:    u.fullName,
@@ -152,11 +252,11 @@ const seed = async () => {
       phone:       u.phone,
       patientType: 'Regular',
     });
+    console.log(`  ✓ Patient profile: ${u.fullName}`);
   }
-  console.log(`  ✓ ${createdUsers.filter(u=>u.role==='patient').length} patient profiles`);
 
-  // Create staff profile for staff user
-  console.log('👨‍⚕️ Seeding staff profiles…');
+  // ── 5. Staff profile ────────────────────────────────────────────
+  console.log('\n👨‍⚕️ Seeding staff profiles…');
   const staffUser = createdUsers.find(u => u.role === 'staff');
   if (staffUser) {
     await Staff.create({
@@ -164,40 +264,65 @@ const seed = async () => {
       clinic:   mainClinic._id,
       fullName: staffUser.fullName,
       email:    staffUser.email,
+      phone:    staffUser.phone,
       role:     'admin',
       position: 'Receptionist',
       isActive: true,
     });
-    console.log('  ✓ 1 staff profile');
+    console.log(`  ✓ Staff profile: ${staffUser.fullName} → ${mainClinic.name}`);
   }
 
-  // Seed FAQs
-  console.log('💬 Seeding FAQs…');
+  // ── 6. FAQs ─────────────────────────────────────────────────────
+  console.log('\n💬 Seeding FAQs…');
   await FAQ.insertMany(FAQS.map(f => ({ ...f, isActive: true })));
   console.log(`  ✓ ${FAQS.length} FAQs`);
 
-  // Seed SystemConfig
-  console.log('⚙️  Seeding system config…');
+  // ── 7. System config ────────────────────────────────────────────
+  console.log('\n⚙️  Seeding system config…');
   await SystemConfig.create({
-    systemName:     'HealthQueue+',
-    version:        '2.0.0',
-    maintenanceMode: false,
-    allowRegistration: true,
-    maxQueuePerUser: 1,
-    defaultWaitTimePerPerson: 10,
-    chatbotEnabled: true,
+    systemName:              'HealthQueue+',
+    version:                 '2.0.0',
+    maintenanceMode:         false,
+    allowRegistration:       true,
+    maxQueuePerUser:         1,
+    defaultWaitTimePerPerson:10,
+    chatbotEnabled:          true,
   });
   console.log('  ✓ System config created');
 
-  console.log('\n✅ Seed complete!');
-  console.log('\n📋 Login credentials:');
-  console.log('  Super Admin:    superadmin@hqplus.com    / Admin@1234');
-  console.log('  Facility Admin: facilityadmin@hqplus.com / Admin@1234');
-  console.log('  Staff:          staff@hqplus.com         / Staff@1234');
-  console.log('  Patient:        ana.reyes@gmail.com      / Patient@123');
+  // ── 8. Verify all password hashes ──────────────────────────────
+  console.log('\n🔐 Verifying password hashes…');
+  let allOk = true;
+  for (const u of USERS) {
+    const saved = await User.findOne({ email: u.email }).select('+password');
+    const ok    = await bcrypt.compare(u.password, saved.password);
+    console.log(`  ${ok ? '✓' : '✗ HASH MISMATCH!'} ${u.email}`);
+    if (!ok) allOk = false;
+  }
+  if (!allOk) {
+    console.error('\n❌ Password hash verification failed! Check the User model pre-save hook.');
+    process.exit(1);
+  }
+
+  // ── Done ────────────────────────────────────────────────────────
+  console.log('\n' + '─'.repeat(55));
+  console.log('🎉 Seed complete!\n');
+  console.log('📋 Demo credentials:');
+  console.log('  Super Admin    → superadmin@hqplus.com      / Admin@1234');
+  console.log('  Facility Admin → facilityadmin@hqplus.com   / Admin@1234');
+  console.log('  Staff          → staff@hqplus.com           / Staff@1234');
+  console.log('  Patient        → patient@hqplus.com         / Patient@1234');
+  console.log('  Patient        → ana.reyes@gmail.com        / Patient@123');
+  console.log('  Patient        → rosa.m@gmail.com           / Patient@123');
+  console.log('─'.repeat(55));
+  console.log(`\n  Facility Admin is assigned to: ${mainClinic.name}`);
+  console.log(`  Staff is assigned to:           ${mainClinic.name}`);
+  console.log(`\n  Total clinics:  ${createdClinics.length}`);
+  console.log(`  Total users:    ${createdUsers.length}`);
+  console.log(`  Patient profiles: ${patientUsers.length}`);
 
   await mongoose.disconnect();
-};
+}
 
 seed().catch(err => {
   console.error('❌ Seed failed:', err.message);
