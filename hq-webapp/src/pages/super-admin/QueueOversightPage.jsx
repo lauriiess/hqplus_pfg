@@ -1,139 +1,174 @@
-import { useEffect, useState } from 'react'
-import api from '../../services/api'
+import { useState, useEffect, useCallback } from 'react'
+import { clinicsApi, queueApi } from '../../services/api'
 import styles from './super-admin.module.css'
 
-const CLINICS_DEMO = [
-  { _id: '1', name: 'Makati City Health Center',  activeQueue: 34, avgWait: 18, status: 'normal' },
-  { _id: '2', name: 'Cebu City Health Office',    activeQueue: 51, avgWait: 26, status: 'warning' },
-  { _id: '3', name: 'Davao RHU Main',             activeQueue: 22, avgWait: 14, status: 'normal' },
-  { _id: '4', name: 'Quezon City Health Center',  activeQueue: 68, avgWait: 35, status: 'critical' },
-  { _id: '5', name: 'Pasig General Hospital',     activeQueue: 29, avgWait: 20, status: 'normal' },
-  { _id: '6', name: 'Manila Health Center',       activeQueue: 45, avgWait: 28, status: 'warning' },
-]
-
-const statusBadge = (s) => {
-  const map = { normal: 'badge-green', warning: 'badge-warn', critical: 'badge-red' }
-  return <span className={'badge ' + (map[s] || 'badge-gray')}>{s}</span>
-}
+const STATUS_BADGE = { waiting:'badge-warn', serving:'badge-blue', done:'badge-green', completed:'badge-green', cancelled:'badge-gray', no_show:'badge-red' }
 
 export default function QueueOversightPage() {
-  const [clinics, setClinics]   = useState(CLINICS_DEMO)
-  const [loading, setLoading]   = useState(false)
-  const [toast,   setToast]     = useState('')
-  const [search,  setSearch]    = useState('')
-  const [filter,  setFilter]    = useState('All')
+  const [clinics,  setClinics]  = useState([])
+  const [queueMap, setQueueMap] = useState({})  // clinicId -> queue[]
+  const [loading,  setLoading]  = useState(true)
+  const [search,   setSearch]   = useState('')
+  const [expanded, setExpanded] = useState(null)
+  const [toast,    setToast]    = useState('')
+  const [metrics,  setMetrics]  = useState(null)
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
+  const showToast = (m) => { setToast(m); setTimeout(() => setToast(''), 3000) }
 
-  const refresh = () => {
+  const load = useCallback(async () => {
     setLoading(true)
-    api.get('/api/clinics')
-      .then(r => { if (r.data?.length) setClinics(r.data); showToast('Queue data refreshed') })
-      .catch(() => showToast('Using demo data'))
-      .finally(() => setLoading(false))
+    try {
+      const cr = await clinicsApi.list()
+      const list = cr.data || []
+      setClinics(list)
+
+      // Fetch queue metrics (totals across all clinics)
+      const mr = await queueApi.metrics().catch(() => ({ data: null }))
+      setMetrics(mr.data)
+
+      // Fetch queue for each clinic in parallel
+      const results = await Promise.allSettled(
+        list.map(c => queueApi.list({ clinicId: c._id }).then(r => ({ id: c._id, queue: r.data || [] })))
+      )
+      const map = {}
+      results.forEach(r => { if (r.status === 'fulfilled') map[r.value.id] = r.value.queue })
+      setQueueMap(map)
+    } catch { showToast('Failed to load queue data') }
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  const act = async (fn, label) => {
+    try { await fn(); showToast(`${label} — done`); load() }
+    catch { showToast(`Failed: ${label}`) }
   }
 
-  const totalActive  = clinics.reduce((s, c) => s + (c.activeQueue || 0), 0)
-  const avgWait      = Math.round(clinics.reduce((s, c) => s + (c.avgWait || 0), 0) / clinics.length)
-  const critical     = clinics.filter(c => c.status === 'critical').length
-  const warnings     = clinics.filter(c => c.status === 'warning').length
+  const filtered = clinics.filter(c =>
+    !search || c.name?.toLowerCase().includes(search.toLowerCase()) || c.city?.toLowerCase().includes(search.toLowerCase())
+  )
 
-  const filtered = clinics.filter(c => {
-    const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase())
-    const matchFilter = filter === 'All' || c.status === filter.toLowerCase()
-    return matchSearch && matchFilter
-  })
+  const totalWaiting  = Object.values(queueMap).flat().filter(q => q.status === 'waiting').length
+  const totalServing  = Object.values(queueMap).flat().filter(q => q.status === 'serving').length
+  const totalDone     = Object.values(queueMap).flat().filter(q => ['done','completed'].includes(q.status)).length
+  const totalAll      = Object.values(queueMap).flat().length
 
   return (
     <div className={styles.page}>
-      {/* Toast */}
-      {toast && (
-        <div className={styles.toast}>{toast}</div>
-      )}
+      {toast && <div className={styles.toast}>{toast}</div>}
 
-      {/* Header */}
       <div className={styles.header}>
         <div>
           <div className={styles.title}>Queue Oversight</div>
-          <div className={styles.sub}>Real-time queue monitoring across all facilities</div>
+          <div className={styles.sub}>Monitor live queues across all health facilities</div>
         </div>
-        <button className={"btn btn-primary btn-sm"} onClick={refresh} disabled={loading}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          {loading ? 'Refreshing…' : 'Refresh'}
-        </button>
+        <div className={styles.toolbar}>
+          <input className="form-input" style={{ width:220 }} placeholder="Search facility…"
+            value={search} onChange={e => setSearch(e.target.value)} />
+          <button className="btn btn-outline" onClick={load}>Refresh</button>
+        </div>
       </div>
 
-      {/* Stats */}
+      {/* Summary stats */}
       <div className={styles.statsRow}>
-        <div className={"card " + styles.statCard}>
-          <div className={styles.statLabel}>Total Active Queues</div>
-          <div className={styles.statValue} style={{ color: "var(--primary)" }}>{totalActive}</div>
-          <div className={styles.statSub}>Across all facilities</div>
+        <div className={`card ${styles.statCard}`}>
+          <div className={styles.statLabel}>Total in Queue</div>
+          <div className={styles.statValue}>{loading ? '…' : totalAll}</div>
         </div>
-        <div className={"card " + styles.statCard}>
-          <div className={styles.statLabel}>Avg. Wait Time</div>
-          <div className={styles.statValue} style={{ color: "var(--success)" }}>{avgWait} min</div>
-          <div className={styles.statSub}>Platform average</div>
+        <div className={`card ${styles.statCard}`}>
+          <div className={styles.statLabel}>Waiting</div>
+          <div className={styles.statValue} style={{ color:'#D97706' }}>{loading ? '…' : totalWaiting}</div>
         </div>
-        <div className={"card " + styles.statCard}>
-          <div className={styles.statLabel}>Critical Alerts</div>
-          <div className={styles.statValue} style={{ color: "var(--error)" }}>{critical}</div>
-          <div className={styles.statSub}>Needs attention</div>
+        <div className={`card ${styles.statCard}`}>
+          <div className={styles.statLabel}>Being Served</div>
+          <div className={styles.statValue} style={{ color:'#2563EB' }}>{loading ? '…' : totalServing}</div>
         </div>
-        <div className={"card " + styles.statCard}>
-          <div className={styles.statLabel}>Warnings</div>
-          <div className={styles.statValue} style={{ color: "var(--warning)" }}>{warnings}</div>
-          <div className={styles.statSub}>High queue load</div>
+        <div className={`card ${styles.statCard}`}>
+          <div className={styles.statLabel}>Completed Today</div>
+          <div className={styles.statValue} style={{ color:'#16A34A' }}>{loading ? '…' : totalDone}</div>
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className={styles.toolbar}>
-        <div className="search-bar" style={{ flex: 1, maxWidth: 320 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input placeholder="Search clinic..." value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-        <select className="dropdown-select" value={filter} onChange={e => setFilter(e.target.value)}>
-          {['All', 'Normal', 'Warning', 'Critical'].map(f => <option key={f}>{f}</option>)}
-        </select>
-      </div>
+      {/* Per-clinic accordion */}
+      {loading
+        ? <div style={{ padding:40, textAlign:'center', color:'var(--muted)' }}>Loading facility queues…</div>
+        : filtered.length === 0
+          ? <div style={{ padding:40, textAlign:'center', color:'var(--muted)' }}>No facilities found.</div>
+          : filtered.map(clinic => {
+              const queue   = queueMap[clinic._id] || []
+              const waiting = queue.filter(q => q.status === 'waiting').length
+              const cap     = clinic.maxQueueCapacity || 60
+              const pct     = Math.min(100, Math.round((queue.length / cap) * 100))
+              const isOpen  = expanded === clinic._id
 
-      {/* Table */}
-      <div className="card">
-        <div className="table-wrap" style={{ border: 'none', borderRadius: 0 }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Health Center</th>
-                <th>Active Queue</th>
-                <th>Avg Wait</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(c => (
-                <tr key={c._id}>
-                  <td style={{ fontWeight: 600, fontSize: 13 }}>{c.name}</td>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ flex: 1, height: 6, background: 'var(--border-lt)', borderRadius: 99, maxWidth: 80 }}>
-                        <div style={{ height: 6, borderRadius: 99, width: Math.min(100, (c.activeQueue / 80) * 100) + '%', background: c.status === 'critical' ? 'var(--error)' : c.status === 'warning' ? 'var(--warning)' : 'var(--success)' }} />
-                      </div>
-                      <span style={{ fontSize: 13, fontWeight: 700 }}>{c.activeQueue}</span>
+              return (
+                <div key={clinic._id} className="card" style={{ padding:0, overflow:'hidden' }}>
+                  {/* Clinic header row */}
+                  <div style={{ padding:'14px 18px', display:'flex', alignItems:'center', gap:14, cursor:'pointer', borderBottom: isOpen ? '1px solid var(--border-lt)' : 'none' }}
+                    onClick={() => setExpanded(isOpen ? null : clinic._id)}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:700, color:'var(--text)', fontSize:14 }}>{clinic.name}</div>
+                      <div style={{ fontSize:12, color:'var(--muted)' }}>{clinic.city}, {clinic.province}</div>
                     </div>
-                  </td>
-                  <td style={{ fontSize: 13 }}>{c.avgWait} min</td>
-                  <td>{statusBadge(c.status)}</td>
-                  <td>
-                    <button className="btn btn-outline btn-sm">View Details</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                    <div style={{ display:'flex', gap:16, alignItems:'center' }}>
+                      <span className={`badge ${waiting > 0 ? 'badge-warn' : 'badge-gray'}`}>{waiting} waiting</span>
+                      <span style={{ fontSize:12, color:'var(--muted)' }}>{queue.length}/{cap}</span>
+                      <div style={{ width:80 }}>
+                        <div className={styles.ovProgress}>
+                          <div className={styles.ovBar} style={{ width:`${pct}%`, background: pct > 80 ? '#DC2626' : pct > 50 ? '#D97706' : '#2563EB' }} />
+                        </div>
+                      </div>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="2"
+                        style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition:'.2s' }}>
+                        <polyline points="6 9 12 15 18 9"/>
+                      </svg>
+                    </div>
+                  </div>
+
+                  {/* Expanded queue table */}
+                  {isOpen && (
+                    <div style={{ padding:'0 18px 14px' }}>
+                      {queue.length === 0
+                        ? <div style={{ padding:'20px 0', textAlign:'center', color:'var(--muted)', fontSize:13 }}>No active queue entries.</div>
+                        : <table className="table" style={{ marginTop:12 }}>
+                            <thead>
+                              <tr>
+                                <th>Queue #</th><th>Patient</th><th>Service</th>
+                                <th>Type</th><th>Joined</th><th>Status</th><th>Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {queue.map(q => (
+                                <tr key={q._id}>
+                                  <td><strong>{q.queueNumber}</strong></td>
+                                  <td>{q.patientName || '—'}</td>
+                                  <td>{q.serviceName || '—'}</td>
+                                  <td>{q.queueType || 'Regular'}</td>
+                                  <td>{q.joinedAt ? new Date(q.joinedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
+                                  <td><span className={`badge ${STATUS_BADGE[q.status] || 'badge-gray'}`}>{q.status}</span></td>
+                                  <td>
+                                    <div style={{ display:'flex', gap:4 }}>
+                                      {q.status === 'waiting' && (
+                                        <button className="btn btn-outline" style={{ fontSize:11, padding:'3px 8px' }}
+                                          onClick={() => act(() => queueApi.call(q._id), 'Called patient')}>Call</button>
+                                      )}
+                                      {q.status === 'serving' && (
+                                        <button className="btn btn-outline" style={{ fontSize:11, padding:'3px 8px', color:'var(--success)' }}
+                                          onClick={() => act(() => queueApi.complete(q._id), 'Completed')}>Done</button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                      }
+                    </div>
+                  )}
+                </div>
+              )
+            })
+      }
     </div>
   )
 }
