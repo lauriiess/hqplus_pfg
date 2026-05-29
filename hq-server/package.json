@@ -7,21 +7,21 @@
     "start":    "node src/index.js",
     "dev":      "nodemon src/index.js",
     "seed":     "node src/seed/seed.js",
-    "env-check":"node -e \"require('dotenv').config();['MONGO_URI','JWT_SECRET','PORT'].forEach(k=>{if(!process.env[k])throw new Error('Missing env var: '+k)});console.log('✅ All required env vars present.')\"",
+    "env-check":"node -e \"require('dotenv').config();['MONGO_URI','JWT_SECRET','PORT'].forEach(k=>{if(!process.env[k])throw new Error('Missing env var: '+k)});console.log('All required env vars present.')\"",
     "lint":     "eslint src/"
   },
   "dependencies": {
-    "axios":           "^1.6.0",
-    "bcryptjs":        "^2.4.3",
-    "cors":            "^2.8.5",
-    "dotenv":          "^16.3.1",
-    "express":         "^4.18.2",
-    "express-rate-limit":"^7.1.5",
-    "helmet":          "^7.1.0",
-    "jsonwebtoken":    "^9.0.2",
-    "mongoose":        "^8.0.3",
-    "morgan":          "^1.10.0",
-    "nodemailer":      "^6.9.7"
+    "axios":              "^1.6.0",
+    "bcryptjs":           "^2.4.3",
+    "cors":               "^2.8.5",
+    "dotenv":             "^16.3.1",
+    "express":            "^4.18.2",
+    "express-rate-limit": "^7.1.5",
+    "helmet":             "^7.1.0",
+    "jsonwebtoken":       "^9.0.2",
+    "mongoose":           "^8.0.3",
+    "morgan":             "^1.10.0",
+    "nodemailer":         "^6.9.7"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
