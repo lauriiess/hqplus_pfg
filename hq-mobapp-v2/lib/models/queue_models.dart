@@ -1,94 +1,104 @@
 import 'package:flutter/material.dart';
 
+// Synced with hq-server: pending, confirmed, serving, completed, noShow, cancelled
+enum QueueStatus { pending, confirmed, serving, completed, noShow, cancelled, waiting }
+
 enum QueueType { regular, priority }
-
-enum QueueStatus { waiting, inProgress, completed, missed }
-
 enum PatientType { regular, priority }
 
 class QueueEntry {
-  final String? id;
-
+  final String id;
   final String queueNumber;
-  final QueueType queueType;
 
+  // Clinic / service info from server
+  final String clinicName;
+  final String serviceName;
+
+  // Legacy department fields (kept for local booking flow)
   final String departmentId;
   final String departmentName;
-
   final String serviceId;
-  final String serviceName;
 
   final String? doctorId;
   final String? doctorName;
 
-  final DateTime joinedAt;
-  final int position;
-  final int totalAhead;
-  final int estimatedWaitTimeMinutes;
-  final QueueStatus status;
-
-  const QueueEntry({
-    this.id,
-
-    required this.queueNumber,
-    required this.queueType,
-    required this.departmentId,
-    required this.departmentName,
-    required this.serviceId,
-    required this.serviceName,
-    this.doctorId,
-    this.doctorName,
-    required this.joinedAt,
-    required this.position,
-    required this.totalAhead,
-    required this.estimatedWaitTimeMinutes,
-    required this.status,
-  });
-}
-
-class QueueJoinResult {
-  final String? id;
-
+  // Patient info
   final String patientName;
   final String? patientEmail;
   final String? patientPhone;
 
-  final String departmentId;
-  final String departmentName;
-
-  final String serviceId;
-  final String serviceName;
-
-  final String? doctorId;
-  final String? doctorName;
-
   final QueueType queueType;
-  final String queueNumber;
+  final QueueStatus status;
 
+  final DateTime joinedAt;
   final int position;
   final int totalAhead;
-  final int estimatedWaitTimeMinutes;
+  final int estimatedWait; // minutes
+
+  const QueueEntry({
+    required this.id,
+    required this.queueNumber,
+    this.clinicName = '',
+    this.serviceName = '',
+    this.departmentId = '',
+    this.departmentName = '',
+    this.serviceId = '',
+    this.doctorId,
+    this.doctorName,
+    this.patientName = '',
+    this.patientEmail,
+    this.patientPhone,
+    this.queueType = QueueType.regular,
+    required this.status,
+    required this.joinedAt,
+    this.position = 0,
+    this.totalAhead = 0,
+    this.estimatedWait = 0,
+  });
+}
+
+class QueueJoinResult {
+  final String entryId;
+  final String queueNumber;
+  final String clinicName;
+  final String serviceName;
+  final int position;
+  final int estimatedWait;
+
+  // Legacy fields kept for local flows
+  final String departmentId;
+  final String departmentName;
+  final String serviceId;
+  final String patientName;
+  final String? patientEmail;
+  final String? patientPhone;
+  final QueueType queueType;
+  final int totalAhead;
   final DateTime joinedAt;
 
   const QueueJoinResult({
-    this.id,
-
-    required this.patientName,
+    required this.entryId,
+    required this.queueNumber,
+    this.clinicName = '',
+    this.serviceName = '',
+    this.position = 0,
+    this.estimatedWait = 0,
+    this.departmentId = '',
+    this.departmentName = '',
+    this.serviceId = '',
+    this.patientName = '',
     this.patientEmail,
     this.patientPhone,
-    required this.departmentId,
-    required this.departmentName,
-    required this.serviceId,
-    required this.serviceName,
-    this.doctorId,
-    this.doctorName,
-    required this.queueType,
-    required this.queueNumber,
-    required this.position,
-    required this.totalAhead,
-    required this.estimatedWaitTimeMinutes,
-    required this.joinedAt,
-  });
+    this.queueType = QueueType.regular,
+    this.totalAhead = 0,
+    DateTime? joinedAt,
+  }) : joinedAt = joinedAt ?? const _DateTimeNow();
+}
+
+// Helper so const constructor can set a default DateTime
+class _DateTimeNow implements DateTime {
+  const _DateTimeNow();
+  @override dynamic noSuchMethod(Invocation i) => DateTime.now();
 }
 
 class Department {

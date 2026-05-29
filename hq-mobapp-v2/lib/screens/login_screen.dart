@@ -8,7 +8,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
-
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -17,9 +16,10 @@ class _LoginScreenState extends State<LoginScreen> {
   bool isEmail = true;
   bool showPassword = false;
   bool rememberMe = false;
+  bool _isLoading = false;
 
-  final emailCtrl = TextEditingController();
-  final phoneCtrl = TextEditingController();
+  final emailCtrl    = TextEditingController();
+  final phoneCtrl    = TextEditingController();
   final passwordCtrl = TextEditingController();
 
   @override
@@ -30,7 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void onSignIn() {
+  Future<void> onSignIn() async {
     final identifier = isEmail ? emailCtrl.text.trim() : phoneCtrl.text.trim();
     final pass = passwordCtrl.text;
 
@@ -41,14 +41,18 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    setState(() => _isLoading = true);
     try {
-      context.read<AppState>().login(identifier: identifier, password: pass);
-
+      await context.read<AppState>().login(identifier: identifier, password: pass);
+      if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/dashboard');
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst("Exception: ", ""))),
       );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -75,71 +79,36 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   children: [
                     const SizedBox(height: 10),
-
-                    // logo
                     Container(
-                      width: 72,
-                      height: 72,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.show_chart_rounded,
-                          color: AppColors.primary, size: 34),
+                      width: 72, height: 72,
+                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                      child: Icon(Icons.show_chart_rounded, color: AppColors.primary, size: 34),
                     ),
                     const SizedBox(height: 14),
-
-                    const Text(
-                      "HealthQueue+",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 30,
-                        letterSpacing: 0.2,
-                      ),
-                    ),
+                    const Text("HealthQueue+",
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 30, letterSpacing: 0.2)),
                     const SizedBox(height: 6),
-                    Text(
-                      "AI-Driven Queue Management System",
-                      style: TextStyle(
-                          color: Colors.white.withOpacity(0.85), fontSize: 14),
-                    ),
-
+                    Text("AI-Driven Queue Management System",
+                      style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 14)),
                     const SizedBox(height: 18),
-
-                    // main Card
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.12),
-                            blurRadius: 24,
-                            offset: const Offset(0, 10),
-                          )
-                        ],
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 24, offset: const Offset(0, 10))],
                       ),
                       padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const SizedBox(height: 6),
-                          const Text(
-                            "Welcome Back",
+                          const Text("Welcome Back",
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textDark,
-                            ),
-                          ),
+                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textDark)),
                           const SizedBox(height: 6),
-                          const Text(
-                            "Sign in to access your account",
+                          const Text("Sign in to access your account",
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: AppColors.textMuted),
-                          ),
+                            style: TextStyle(color: AppColors.textMuted)),
                           const SizedBox(height: 16),
                           PillToggle(
                             isEmail: isEmail,
@@ -147,8 +116,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPhone: () => setState(() => isEmail = false),
                           ),
                           const SizedBox(height: 16),
-                          const Text("Email Address",
-                              style: TextStyle(fontWeight: FontWeight.w700)),
+                          Text(isEmail ? "Email Address" : "Phone Number",
+                            style: const TextStyle(fontWeight: FontWeight.w700)),
                           const SizedBox(height: 8),
                           if (isEmail)
                             TextField(
@@ -156,8 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               keyboardType: TextInputType.emailAddress,
                               decoration: const InputDecoration(
                                 prefixIcon: Icon(Icons.person_outline),
-                                hintText: "juan.delacruz@email.com",
-                              ),
+                                hintText: "juan.delacruz@email.com"),
                             )
                           else
                             TextField(
@@ -165,12 +133,10 @@ class _LoginScreenState extends State<LoginScreen> {
                               keyboardType: TextInputType.phone,
                               decoration: const InputDecoration(
                                 prefixIcon: Icon(Icons.phone_outlined),
-                                hintText: "+63 917 123 4567",
-                              ),
+                                hintText: "+63 917 123 4567"),
                             ),
                           const SizedBox(height: 14),
-                          const Text("Password",
-                              style: TextStyle(fontWeight: FontWeight.w700)),
+                          const Text("Password", style: TextStyle(fontWeight: FontWeight.w700)),
                           const SizedBox(height: 8),
                           TextField(
                             controller: passwordCtrl,
@@ -179,11 +145,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               prefixIcon: const Icon(Icons.lock_outline),
                               hintText: "Enter your password",
                               suffixIcon: IconButton(
-                                icon: Icon(showPassword
-                                    ? Icons.visibility_off
-                                    : Icons.visibility),
-                                onPressed: () => setState(
-                                    () => showPassword = !showPassword),
+                                icon: Icon(showPassword ? Icons.visibility_off : Icons.visibility),
+                                onPressed: () => setState(() => showPassword = !showPassword),
                               ),
                             ),
                           ),
@@ -192,21 +155,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               Checkbox(
                                 value: rememberMe,
-                                onChanged: (v) =>
-                                    setState(() => rememberMe = v ?? false),
+                                onChanged: (v) => setState(() => rememberMe = v ?? false),
                                 activeColor: AppColors.primary,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(4)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
                               ),
-                              const Text("Remember me",
-                                  style: TextStyle(color: AppColors.textMuted)),
+                              const Text("Remember me", style: TextStyle(color: AppColors.textMuted)),
                               const Spacer(),
-                              TextButton(
-                                onPressed: () {
-                                  // TODO forgot password flow
-                                },
-                                child: const Text("Forgot Password?"),
-                              ),
+                              TextButton(onPressed: () {}, child: const Text("Forgot Password?")),
                             ],
                           ),
                           const SizedBox(height: 4),
@@ -215,80 +170,55 @@ class _LoginScreenState extends State<LoginScreen> {
                               backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
-                            onPressed: onSignIn,
-                            child: const Text(
-                              "Sign In",
-                              style: TextStyle(fontWeight: FontWeight.w800),
-                            ),
+                            onPressed: _isLoading ? null : onSignIn,
+                            child: _isLoading
+                                ? const SizedBox(height: 20, width: 20,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : const Text("Sign In", style: TextStyle(fontWeight: FontWeight.w800)),
                           ),
                           const SizedBox(height: 14),
-                          Row(
-                            children: [
-                              Expanded(child: Divider(color: AppColors.border)),
-                              const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 10),
-                                child: Text("Or continue with",
-                                    style:
-                                        TextStyle(color: AppColors.textMuted)),
-                              ),
-                              Expanded(child: Divider(color: AppColors.border)),
-                            ],
-                          ),
+                          Row(children: [
+                            Expanded(child: Divider(color: AppColors.border)),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 10),
+                              child: Text("Or continue with", style: TextStyle(color: AppColors.textMuted))),
+                            Expanded(child: Divider(color: AppColors.border)),
+                          ]),
                           const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: SocialButton(
-                                  label: "Google",
-                                  leading: const Icon(FontAwesomeIcons.google,
-                                      size: 22),
-                                  onTap: () {},
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: SocialButton(
-                                  label: "Facebook",
-                                  leading: const Icon(Icons.facebook, size: 18),
-                                  onTap: () {},
-                                ),
-                              ),
-                            ],
-                          ),
+                          Row(children: [
+                            Expanded(child: SocialButton(
+                              label: "Google",
+                              leading: const Icon(FontAwesomeIcons.google, size: 22),
+                              onTap: () {},
+                            )),
+                            const SizedBox(width: 12),
+                            Expanded(child: SocialButton(
+                              label: "Facebook",
+                              leading: const Icon(Icons.facebook, size: 18),
+                              onTap: () {},
+                            )),
+                          ]),
                           const SizedBox(height: 12),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              const Text("Don't have an account? ",
-                                  style: TextStyle(color: AppColors.textMuted)),
+                              const Text("Don\'t have an account? ",
+                                style: TextStyle(color: AppColors.textMuted)),
                               GestureDetector(
-                                onTap: () {
-                                  Navigator.pushNamed(context, '/register');
-                                },
-                                child: const Text(
-                                  "Sign Up",
+                                onTap: () => Navigator.pushNamed(context, '/register'),
+                                child: const Text("Sign Up",
                                   style: TextStyle(
                                     color: AppColors.primary,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
+                                    fontWeight: FontWeight.w700,
+                                  )),
                               ),
                             ],
                           ),
+                          const SizedBox(height: 6),
                         ],
                       ),
-                    ),
-
-                    const SizedBox(height: 150),
-
-                    Text(
-                      "© 2026 HealthQueue+. All rights reserved.",
-                      style: TextStyle(
-                          color: Colors.white.withOpacity(0.75), fontSize: 12),
-                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),

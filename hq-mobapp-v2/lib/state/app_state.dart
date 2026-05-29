@@ -1,414 +1,284 @@
 import 'package:flutter/foundation.dart';
+import '../services/api_service.dart';
 import '../models/appointment_models.dart';
 import '../models/queue_models.dart';
 import '../models/chat_models.dart';
 import '../models/user_models.dart';
 
 class AppState extends ChangeNotifier {
-  /* --------------------------
-    AUTH / USERS (MOCK)
-  -------------------------- */
-  final List<AppUser> _users = [];
+
+  /* ────────────────────────────────────────────────────────────
+     AUTH — real server
+  ──────────────────────────────────────────────────────────── */
   AppUser? _currentUser;
+  bool _isAuthLoading = false;
 
-  List<AppUser> get users => List.unmodifiable(_users);
   AppUser? get currentUser => _currentUser;
-  bool get isLoggedIn => _currentUser != null;
+  bool get isLoggedIn      => _currentUser != null;
+  bool get isAuthLoading   => _isAuthLoading;
 
-  String _normalizeEmail(String s) => s.trim().toLowerCase();
-  String _normalizePhone(String s) => s.trim();
-
-  AppUser? findUserByEmailOrPhone(String identifier) {
-    final id = identifier.trim();
-    if (id.isEmpty) return null;
-
-    final email = _normalizeEmail(id);
-    final phone = _normalizePhone(id);
-
-    for (final u in _users) {
-      if (u.email.isNotEmpty && _normalizeEmail(u.email) == email) return u;
-      if (u.phone.isNotEmpty && _normalizePhone(u.phone) == phone) return u;
+  Future<void> login({required String identifier, required String password}) async {
+    _isAuthLoading = true;
+    notifyListeners();
+    try {
+      final data = await ApiService.login(identifier, password);
+      _currentUser = _userFromMap(data['user'] ?? data);
+      await Future.wait([fetchAppointments(), fetchQueueStatus()]);
+    } finally {
+      _isAuthLoading = false;
+      notifyListeners();
     }
-    return null;
   }
 
-  bool emailExists(String email) {
-    final e = _normalizeEmail(email);
-    if (e.isEmpty) return false;
-    return _users.any((u) => _normalizeEmail(u.email) == e);
-  }
-
-  bool phoneExists(String phone) {
-    final p = _normalizePhone(phone);
-    if (p.isEmpty) return false;
-    return _users.any((u) => _normalizePhone(u.phone) == p);
-  }
-
-  String _nextPatientId() {
-    // PT-YYYY-###
-    final year = DateTime.now().year;
-    final count = _users.length + 1;
-    return "PT-$year-${count.toString().padLeft(3, '0')}";
-  }
-
-  /// Register (supports many accounts)
-  /// - If registering by email, require unique email
-  /// - If registering by phone, require unique phone
-  void registerUser({
+  Future<void> registerUser({
     required String fullName,
     required String email,
     required String phone,
     required DateTime dob,
     required String password,
-  }) {
-    final cleanName = fullName.trim().replaceAll(RegExp(r'\s+'), ' ');
-    final cleanEmail = _normalizeEmail(email);
-    final cleanPhone = _normalizePhone(phone);
+  }) async {
+    _isAuthLoading = true;
+    notifyListeners();
+    try {
+      final data = await ApiService.register({
+        'fullName': fullName, 'email': email, 'phone': phone,
+        'dateOfBirth': dob.toIso8601String(),
+        'password': password, 'role': 'patient',
+      });
+      _currentUser = _userFromMap(data['user'] ?? data, fallback: {
+        'fullName': fullName, 'email': email, 'phone': phone,
+      });
+    } finally {
+      _isAuthLoading = false;
+      notifyListeners();
+    }
+  }
 
-    if (cleanName.isEmpty) {
-      throw Exception("Full name is required.");
-    }
-    if (cleanEmail.isEmpty && cleanPhone.isEmpty) {
-      throw Exception("Email or phone number is required.");
-    }
-    if (password.isEmpty) {
-      throw Exception("Password is required.");
-    }
-
-    if (cleanEmail.isNotEmpty && emailExists(cleanEmail)) {
-      throw Exception("Email already registered.");
-    }
-    if (cleanPhone.isNotEmpty && phoneExists(cleanPhone)) {
-      throw Exception("Phone number already registered.");
-    }
-
-    final user = AppUser(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      fullName: cleanName,
-      email: cleanEmail,
-      phone: cleanPhone,
-      dob: dob,
-      password: password, // demo only (do NOT store plaintext in real apps)
-      patientType: "Regular Patient",
-      patientId: _nextPatientId(),
-      age: "", // optional
-      philHealthNumber: "",
-      hmoNumber: "",
+  AppUser _userFromMap(dynamic u, {Map<String, dynamic>? fallback}) {
+    final m = (u is Map<String, dynamic>) ? u : <String, dynamic>{};
+    final f = fallback ?? {};
+    return AppUser(
+      id:               m['_id']      ?? m['id']      ?? '',
+      fullName:         m['fullName'] ?? f['fullName'] ?? '',
+      email:            m['email']    ?? f['email']    ?? '',
+      phone:            m['phone']    ?? f['phone']    ?? '',
+      dob:              DateTime.tryParse(m['dateOfBirth'] ?? '') ?? DateTime(2000),
+      password:         '',
+      patientType:      m['patientType']     ?? 'Regular Patient',
+      patientId:        m['patientId']       ?? '',
+      age:              m['age']?.toString() ?? '',
+      philHealthNumber: m['philHealthNumber'] ?? '',
+      hmoNumber:        m['hmoNumber']        ?? '',
     );
-
-    _users.add(user);
-    _currentUser = user; // ✅ auto-login after register
-    notifyListeners();
   }
 
-  /// Login via email OR phone
-  void login({
-    required String identifier,
-    required String password,
-  }) {
-    final u = findUserByEmailOrPhone(identifier);
-    if (u == null) {
-      throw Exception("Account not found.");
-    }
-    if (u.password != password) {
-      throw Exception("Incorrect password.");
-    }
-    _currentUser = u;
-    notifyListeners();
-  }
-
-  void logout() {
+  Future<void> logout() async {
+    await ApiService.clearToken();
     _currentUser = null;
+    _appointments = [];
+    _currentQueue = null;
+    _chatMessages = [];
     notifyListeners();
   }
 
-  /// Update profile of the logged-in user (syncs Profile screen)
-  void updateCurrentUserProfile({
-    String? fullName,
-    String? phone,
-    String? age,
-    String? patientType,
-    String? philHealthNumber,
-    String? hmoNumber,
-  }) {
+  Future<void> updateCurrentUserProfile({
+    String? fullName, String? phone, String? age,
+    String? patientType, String? philHealthNumber, String? hmoNumber,
+  }) async {
     if (_currentUser == null) return;
-
-    final updated = _currentUser!.copyWith(
-      fullName: fullName,
-      phone: phone,
-      age: age,
-      patientType: patientType,
-      philHealthNumber: philHealthNumber,
-      hmoNumber: hmoNumber,
-    );
-
-    // update list
-    final idx = _users.indexWhere((x) => x.id == updated.id);
-    if (idx != -1) _users[idx] = updated;
-
-    _currentUser = updated;
-    notifyListeners();
+    final body = <String, dynamic>{};
+    if (fullName != null)         body['fullName']         = fullName;
+    if (phone != null)            body['phone']            = phone;
+    if (age != null)              body['age']              = age;
+    if (patientType != null)      body['patientType']      = patientType;
+    if (philHealthNumber != null) body['philHealthNumber'] = philHealthNumber;
+    if (hmoNumber != null)        body['hmoNumber']        = hmoNumber;
+    try {
+      final updated = await ApiService.updateProfile(body);
+      _currentUser = _currentUser!.copyWith(
+        fullName: updated['fullName'], phone: updated['phone'],
+        age: updated['age']?.toString(), patientType: updated['patientType'],
+        philHealthNumber: updated['philHealthNumber'], hmoNumber: updated['hmoNumber'],
+      );
+      notifyListeners();
+    } catch (e) { debugPrint('updateProfile error: $e'); }
   }
 
-  /* --------------------------
-    APPOINTMENTS STATE
-  -------------------------- */
-  final List<Appointment> _appointments = [];
-  List<Appointment> get appointments => List.unmodifiable(_appointments);
+  /* ────────────────────────────────────────────────────────────
+     APPOINTMENTS — live from server
+  ──────────────────────────────────────────────────────────── */
+  List<Appointment> _appointments = [];
+  bool _apptLoading = false;
 
-  Appointment? getAppointmentById(String id) {
-    for (final a in _appointments) {
-      if (a.id == id) return a;
+  List<Appointment> get appointments    => List.unmodifiable(_appointments);
+  bool              get apptLoading     => _apptLoading;
+
+  List<Appointment> get upcomingAppointments => _appointments.where((a) =>
+    a.status == AppointmentStatus.scheduled  ||
+    a.status == AppointmentStatus.pending    ||
+    a.status == AppointmentStatus.confirmed
+  ).toList();
+
+  Future<void> fetchAppointments() async {
+    _apptLoading = true;
+    notifyListeners();
+    try {
+      final list = await ApiService.getMyAppointments();
+      _appointments = list.map((a) {
+        final m = a as Map<String, dynamic>;
+        return Appointment(
+          id:         m['_id'] ?? m['id'] ?? '',
+          clinicName: (m['clinicId'] is Map) ? m['clinicId']['name'] ?? '' : m['clinicName'] ?? '',
+          department: (m['serviceId'] is Map) ? m['serviceId']['name'] ?? '' : m['department'] ?? m['service'] ?? '',
+          doctor:     (m['staffId']  is Map) ? m['staffId']['fullName'] ?? '' : m['doctor'] ?? '',
+          date:       DateTime.tryParse(m['appointmentDate'] ?? m['date'] ?? '') ?? DateTime.now(),
+          timeLabel:  m['timeSlot'] ?? m['timeLabel'] ?? '',
+          status:     _parseApptStatus(m['status']),
+          notes:      m['notes'] ?? '',
+        );
+      }).toList();
+    } catch (e) { debugPrint('fetchAppointments error: $e'); }
+    finally {
+      _apptLoading = false;
+      notifyListeners();
     }
-    return null;
   }
 
-  List<Appointment> get upcomingAppointments {
-    return _appointments
-        .where((a) =>
-            a.status == AppointmentStatus.scheduled ||
-            a.status == AppointmentStatus.confirmed)
-        .toList();
+  AppointmentStatus _parseApptStatus(String? s) {
+    switch (s) {
+      case 'pending':     return AppointmentStatus.pending;
+      case 'confirmed':   return AppointmentStatus.confirmed;
+      case 'arrived':     return AppointmentStatus.arrived;
+      case 'serving':     return AppointmentStatus.serving;
+      case 'completed':   return AppointmentStatus.completed;
+      case 'cancelled':   return AppointmentStatus.cancelled;
+      case 'noShow':      return AppointmentStatus.noShow;
+      case 'rescheduled': return AppointmentStatus.rescheduled;
+      default:             return AppointmentStatus.pending;
+    }
   }
 
-  List<Appointment> get pastAppointments {
-    return _appointments
-        .where((a) =>
-            a.status == AppointmentStatus.completed ||
-            a.status == AppointmentStatus.cancelled)
-        .toList();
-  }
-
-  void addAppointment(Appointment a) {
-    _appointments.add(a);
+  void addAppointment(Appointment appt) {
+    _appointments.insert(0, appt);
     notifyListeners();
+    fetchAppointments();
   }
 
-  void cancelAppointment(String appointmentId) {
-    final i = _appointments.indexWhere((a) => a.id == appointmentId);
-    if (i == -1) return;
-    _appointments[i] =
-        _appointments[i].copyWith(status: AppointmentStatus.cancelled);
-    notifyListeners();
-  }
-
-  void completeAppointment(String appointmentId) {
-    final i = _appointments.indexWhere((a) => a.id == appointmentId);
-    if (i == -1) return;
-    _appointments[i] =
-        _appointments[i].copyWith(status: AppointmentStatus.completed);
-    notifyListeners();
-  }
-
-  void rescheduleAppointment({
-    required String appointmentId,
-    required DateTime newDate,
-    required String newTimeLabel,
-    String? newNotes,
-    required AppointmentStatus status,
+  void updateAppointment(String id, {
+    AppointmentStatus? status, DateTime? date, String? timeLabel, String? notes,
   }) {
-    final i = _appointments.indexWhere((a) => a.id == appointmentId);
-    if (i == -1) return;
-    _appointments[i] =
-        _appointments[i].copyWith(date: newDate, timeLabel: newTimeLabel);
+    final idx = _appointments.indexWhere((a) => a.id == id);
+    if (idx == -1) return;
+    _appointments[idx] = _appointments[idx].copyWith(
+        status: status, date: date, timeLabel: timeLabel, notes: notes);
     notifyListeners();
+    if (status == AppointmentStatus.cancelled) {
+      ApiService.cancelAppointment(id).catchError((_) {});
+    }
+    fetchAppointments();
   }
 
-  // Update any fields of an existing appointment
-  void updateAppointment(
-    String appointmentId, {
-    AppointmentStatus? status,
-    DateTime? date,
-    String? timeLabel,
-    String? notes,
-  }) {
-    final i = _appointments.indexWhere((a) => a.id == appointmentId);
-    if (i == -1) return;
+  /* ────────────────────────────────────────────────────────────
+     QUEUE — live from server
+  ──────────────────────────────────────────────────────────── */
+  QueueEntry? _currentQueue;
+  bool _queueLoading = false;
 
-    _appointments[i] = _appointments[i].copyWith(
-      status: status,
-      date: date,
-      timeLabel: timeLabel,
-      notes: notes,
+  QueueEntry? get currentQueue  => _currentQueue;
+  bool        get queueLoading  => _queueLoading;
+
+  // Used by dashboard _getActiveQueues
+  List<QueueEntry> get activeQueues =>
+      _currentQueue == null ? <QueueEntry>[] : <QueueEntry>[_currentQueue!];
+
+  Future<void> fetchQueueStatus() async {
+    _queueLoading = true;
+    notifyListeners();
+    try {
+      final data = await ApiService.getMyQueueStatus();
+      if (data.isEmpty || data['entry'] == null) {
+        _currentQueue = null;
+      } else {
+        final e = data['entry'] as Map<String, dynamic>;
+        _currentQueue = QueueEntry(
+          id:           e['_id'] ?? e['id'] ?? '',
+          queueNumber:  e['queueNumber']?.toString() ?? 'N/A',
+          clinicName:   (e['clinic'] is Map) ? e['clinic']['name'] ?? '' : e['clinicName'] ?? '',
+          serviceName:  e['serviceName'] ?? '',
+          patientName:  _currentUser?.fullName ?? '',
+          patientEmail: _currentUser?.email,
+          patientPhone: _currentUser?.phone,
+          status:       _parseQueueStatus(e['status']),
+          position:     (data['peopleAhead'] ?? 0) as int,
+          estimatedWait:(data['estimatedWaitTime'] ?? e['estimatedWaitMinutes'] ?? 0) as int,
+          joinedAt:     DateTime.tryParse(e['joinedAt'] ?? '') ?? DateTime.now(),
+        );
+      }
+    } catch (e) { debugPrint('fetchQueueStatus error: $e'); }
+    finally {
+      _queueLoading = false;
+      notifyListeners();
+    }
+  }
+
+  QueueStatus _parseQueueStatus(String? s) {
+    switch (s) {
+      case 'pending':   return QueueStatus.pending;
+      case 'confirmed': return QueueStatus.confirmed;
+      case 'serving':   return QueueStatus.serving;
+      case 'completed': return QueueStatus.completed;
+      case 'cancelled': return QueueStatus.cancelled;
+      case 'noShow':    return QueueStatus.noShow;
+      case 'waiting':   return QueueStatus.waiting;
+      default:          return QueueStatus.pending;
+    }
+  }
+
+  void addQueueFromJoinResult(QueueJoinResult result) {
+    _currentQueue = QueueEntry(
+      id:           result.entryId,
+      queueNumber:  result.queueNumber,
+      clinicName:   result.clinicName,
+      serviceName:  result.serviceName,
+      patientName:  _currentUser?.fullName ?? result.patientName,
+      patientEmail: _currentUser?.email    ?? result.patientEmail,
+      patientPhone: _currentUser?.phone    ?? result.patientPhone,
+      status:       QueueStatus.pending,
+      position:     result.position,
+      estimatedWait:result.estimatedWait,
+      joinedAt:     result.joinedAt,
     );
+    notifyListeners();
+    fetchQueueStatus();
+  }
 
+  Future<bool> cancelQueue(String id) async {
+    final ok = await ApiService.cancelQueue(id);
+    if (ok) { _currentQueue = null; notifyListeners(); }
+    return ok;
+  }
+
+  /* ────────────────────────────────────────────────────────────
+     CHAT
+  ──────────────────────────────────────────────────────────── */
+  List<ChatMessage> _chatMessages = [];
+  List<ChatMessage> get chatMessages => List.unmodifiable(_chatMessages);
+
+  void addChatMessage(ChatMessage msg) {
+    _chatMessages.add(msg);
     notifyListeners();
   }
 
-  /* --------------------------
-    QUEUE STATE
-    - supports "multi-department queue" like you want
-  -------------------------- */
-  final List<QueueEntry> _queues = [];
-
-  List<QueueEntry> get queues => List.unmodifiable(_queues);
-
-  // active = waiting or inProgress
-  List<QueueEntry> get activeQueues => _queues
-      .where((q) =>
-          q.status == QueueStatus.waiting || q.status == QueueStatus.inProgress)
-      .toList();
-
-  List<QueueEntry> get finishedQueues => _queues
-      .where((q) =>
-          q.status == QueueStatus.completed || q.status == QueueStatus.missed)
-      .toList();
-
-  /// Join queue using the data returned by Join Queue screen
-  /// (QueueJoinResult is your model)
-  void addQueueFromJoinResult(QueueJoinResult r) {
-    final entry = QueueEntry(
-      id: r.id,
-      queueNumber: r.queueNumber,
-      queueType: r.queueType,
-      departmentId: r.departmentId,
-      departmentName: r.departmentName,
-      serviceId: r.serviceId,
-      serviceName: r.serviceName,
-      doctorId: r.doctorId,
-      doctorName: r.doctorName,
-      joinedAt: r.joinedAt,
-      position: r.position,
-      totalAhead: r.totalAhead,
-      estimatedWaitTimeMinutes: r.estimatedWaitTimeMinutes,
-      status: QueueStatus.waiting,
-    );
-
-    _queues.add(entry);
-    notifyListeners();
-  }
-
-  /// Leave queue = mark as missed (or remove if you prefer)
-  void leaveQueue(String queueNumber) {
-    final i = _queues.indexWhere((q) => q.queueNumber == queueNumber);
-    if (i == -1) return;
-
-    final q = _queues[i];
-    _queues[i] = QueueEntry(
-      queueNumber: q.queueNumber,
-      queueType: q.queueType,
-      departmentId: q.departmentId,
-      departmentName: q.departmentName,
-      serviceId: q.serviceId,
-      serviceName: q.serviceName,
-      doctorId: q.doctorId,
-      doctorName: q.doctorName,
-      joinedAt: q.joinedAt,
-      position: q.position,
-      totalAhead: q.totalAhead,
-      estimatedWaitTimeMinutes: q.estimatedWaitTimeMinutes,
-      status: QueueStatus.missed,
-    );
-
-    notifyListeners();
-  }
-
-  /// Update status timeline (e.g., waiting -> inProgress -> completed)
-  void updateQueueStatus(String queueNumber, QueueStatus newStatus) {
-    final i = _queues.indexWhere((q) => q.queueNumber == queueNumber);
-    if (i == -1) return;
-
-    final q = _queues[i];
-    _queues[i] = QueueEntry(
-      queueNumber: q.queueNumber,
-      queueType: q.queueType,
-      departmentId: q.departmentId,
-      departmentName: q.departmentName,
-      serviceId: q.serviceId,
-      serviceName: q.serviceName,
-      doctorId: q.doctorId,
-      doctorName: q.doctorName,
-      joinedAt: q.joinedAt,
-      position: q.position,
-      totalAhead: q.totalAhead,
-      estimatedWaitTimeMinutes: q.estimatedWaitTimeMinutes,
-      status: newStatus,
-    );
-
-    notifyListeners();
-  }
-
-  /* --------------------------
-    CHAT STATE
-  -------------------------- */
-  final List<ChatMessage> _messages = [];
-  List<ChatMessage> get messages => List.unmodifiable(_messages);
-
-  /// Call once (e.g. in ChatbotScreen initState) so the greeting appears.
-  void seedChatIfEmpty() {
-    if (_messages.isNotEmpty) return;
-
-    final now = DateTime.now();
-    _messages.addAll([
-      ChatMessage(
-        id: '1',
-        sender: ChatSender.bot,
-        message:
-            "Hello! I'm your HealthQueue+ AI assistant. How can I help you today?",
-        timestamp: now,
-      ),
-      ChatMessage(
-        id: '2',
-        sender: ChatSender.bot,
-        message: "I can help you with:\n"
-            "• Booking appointments\n"
-            "• Queue information\n"
-            "• Department details\n"
-            "• Checking your active appointment/queue\n\n"
-            "What would you like to do?",
-        timestamp: now,
-        quickReplies: const [
-          "Book Appointment",
-          "Queue Status",
-          "My Appointments"
-        ],
-      ),
-    ]);
-    notifyListeners();
-  }
-
-  void addMessage(ChatMessage m) {
-    _messages.add(m);
-    notifyListeners();
-  }
-
-  void addUserText(String text) {
-    _messages.add(ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      sender: ChatSender.user,
-      message: text,
-      timestamp: DateTime.now(),
-    ));
-    notifyListeners();
-  }
-
-  void addBotText(String text, {List<String> quickReplies = const []}) {
-    _messages.add(ChatMessage(
-      id: (DateTime.now().millisecondsSinceEpoch + 1).toString(),
-      sender: ChatSender.bot,
-      message: text,
-      timestamp: DateTime.now(),
-      quickReplies: quickReplies,
-    ));
-    notifyListeners();
-  }
-
-  void clearChat() {
-    _messages.clear();
-    notifyListeners();
-  }
-
-  /* --------------------------
-    HELPERS FOR DASHBOARD COUNTS
-  -------------------------- */
-  int get upcomingAppointmentsCount => upcomingAppointments.length;
-  int get activeQueuesCount => activeQueues.length;
-
-  // optional: dashboard "current queue" (latest active)
-  QueueEntry? get currentQueue {
-    final actives = activeQueues;
-    if (actives.isEmpty) return null;
-    actives.sort((a, b) => b.joinedAt.compareTo(a.joinedAt));
-    return actives.first;
+  Future<void> sendChatMessage(String text) async {
+    addChatMessage(ChatMessage(text: text, isUser: true, timestamp: DateTime.now()));
+    try {
+      final res = await ApiService.sendChatMessage(text);
+      final reply = res['reply'] ?? res['response'] ?? res['message'] ?? 'I could not process that.';
+      addChatMessage(ChatMessage(text: reply, isUser: false, timestamp: DateTime.now()));
+    } catch (_) {
+      addChatMessage(ChatMessage(
+          text: 'Service unavailable. Please try again.',
+          isUser: false, timestamp: DateTime.now()));
+    }
   }
 }
