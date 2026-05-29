@@ -19,7 +19,7 @@ import FacilityReportsPage from './pages/facility-admin/FacilityReportsPage'
 import SuperDashboard    from './pages/super-admin/SuperDashboard'
 import ClinicsPage       from './pages/super-admin/ClinicsPage'
 import UsersPage         from './pages/super-admin/UsersPage'
-import QueueOversightPage from './pages/super-admin/QueueOversightPage'
+import SuperQueueOversightPage from './pages/super-admin/QueueOversightPage'
 import SystemReportsPage from './pages/super-admin/SystemReportsPage'
 import SystemConfigPage  from './pages/super-admin/SystemConfigPage'
 import ClinicManagementPage from './pages/super-admin/ClinicManagementPage'
@@ -68,7 +68,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard"    element={<FacilityDashboard />} />
         <Route path="queue"        element={<QueuePage />} />
-        <Route path="oversight"    element={<QueueOversightPage />} />
+        <Route path="oversight"    element={<SuperQueueOversightPage />} />
         <Route path="schedule"     element={<SchedulePage />} />
         <Route path="staff"        element={<StaffPage />} />
         <Route path="patients"     element={<PatientsPage />} />
@@ -91,7 +91,7 @@ function AppRoutes() {
         <Route path="clinics"   element={<ClinicsPage />} />
         <Route path="users"     element={<UsersPage />} />
         <Route path="patients"  element={<PatientsPage />} />
-        <Route path="queue"     element={<QueueOversightPage />} />
+        <Route path="queue"     element={<SuperQueueOversightPage />} />
         <Route path="reports"   element={<SystemReportsPage />} />
         <Route path="chatbot"   element={<ChatbotAdminPage />} />
         <Route path="config"    element={<SystemConfigPage />} />
