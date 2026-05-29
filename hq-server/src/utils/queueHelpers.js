@@ -1,89 +1,51 @@
 /**
  * Queue utility helpers
  */
-const mongoose = require('mongoose');
 const QueueEntry = require('../models/QueueEntry');
-
-/** Safely cast any value to a Mongoose ObjectId */
-const toObjectId = (id) => {
-  if (id instanceof mongoose.Types.ObjectId) return id;
-  return new mongoose.Types.ObjectId(id.toString());
-};
 
 /**
  * Generate the next queue number for a clinic today.
- * Format: A-001, A-002, ...
+ * Format: <prefix><3-digit-number>  e.g. H001, H002 …
  */
-const getNextQueueNumber = async (clinicId, prefix = 'A') => {
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999);
-
+const getNextQueueNumber = async (clinicId, prefix = 'Q') => {
+  const start = new Date(); start.setHours(0,0,0,0);
   const count = await QueueEntry.countDocuments({
-    clinic: clinicId,
-    joinedAt: { $gte: todayStart, $lte: todayEnd },
-    status: { $ne: 'cancelled' },
+    clinic:   clinicId,
+    joinedAt: { $gte: start },
   });
-
-  const number = (count + 1).toString().padStart(3, '0');
-  return `${prefix}-${number}`;
+  const num = String(count + 1).padStart(3, '0');
+  return `${prefix}${num}`;
 };
 
 /**
- * Calculate average waiting/turnaround time for a clinic today.
+ * Estimate wait time in minutes based on active queue + base wait time per person.
+ */
+const estimateWaitTime = async (clinicId) => {
+  const Clinic = require('../models/Clinic');
+  const clinic = await Clinic.findById(clinicId).select('baseWaitTimePerPerson');
+  const base   = clinic?.baseWaitTimePerPerson || 10;
+  const active = await QueueEntry.countDocuments({
+    clinic: clinicId,
+    status: { $in: ['waiting','serving'] },
+  });
+  return active * base;
+};
+
+/**
+ * Get average wait time for completed entries today at a clinic.
  */
 const getAvgWaitTime = async (clinicId) => {
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const start = new Date(); start.setHours(0,0,0,0);
+  const completed = await QueueEntry.find({
+    clinic:   clinicId,
+    status:   { $in: ['done','completed'] },
+    calledAt: { $ne: null },
+    joinedAt: { $gte: start },
+  }).select('joinedAt calledAt');
 
-  const result = await QueueEntry.aggregate([
-    {
-      $match: {
-        clinic: toObjectId(clinicId),
-        joinedAt: { $gte: todayStart },
-        status: 'done',
-        actualWaitMinutes: { $ne: null, $gt: 0 },
-      },
-    },
-    {
-      $group: {
-        _id: null,
-        avgWait:       { $avg: '$actualWaitMinutes' },
-        avgTurnaround: { $avg: '$turnaroundMinutes' },
-      },
-    },
-  ]);
-
-  if (!result.length) return { avgWait: 0, avgTurnaround: 0 };
-  return {
-    avgWait:       Math.round(result[0].avgWait),
-    avgTurnaround: Math.round(result[0].avgTurnaround),
-  };
+  if (!completed.length) return 0;
+  const total = completed.reduce((s,e) => s + (new Date(e.calledAt) - new Date(e.joinedAt)) / 60000, 0);
+  return Math.round(total / completed.length);
 };
 
-/**
- * Get active queue count for a clinic.
- */
-const getActiveQueueCount = async (clinicId) => {
-  return QueueEntry.countDocuments({
-    clinic: clinicId,
-    status: { $in: ['waiting', 'serving'] },
-  });
-};
-
-/**
- * Estimate wait time for a new patient based on current queue.
- */
-const estimateWaitTime = async (clinicId, avgServiceMinutes = 15) => {
-  const waitingCount = await QueueEntry.countDocuments({
-    clinic: clinicId,
-    status: 'waiting',
-  });
-  return waitingCount * avgServiceMinutes;
-};
-
-module.exports = {
-  toObjectId,
-  getNextQueueNumber,
-  getAvgWaitTime,
-  getActiveQueueCount,
-  estimateWaitTime,
-};
+module.exports = { getNextQueueNumber, estimateWaitTime, getAvgWaitTime };
