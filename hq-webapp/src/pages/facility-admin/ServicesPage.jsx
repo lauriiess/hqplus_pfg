@@ -1,38 +1,88 @@
 import { useState, useEffect } from 'react'
-import api, { clinicsApi } from '../../services/api'
+import { clinicsApi } from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import styles from './facility-admin.module.css'
 
+const EMPTY_SVC = { name:'', description:'', durationMinutes:30, isAvailable:true }
+
 export default function ServicesPage() {
-  const { user }  = useAuth()
+  const { user }   = useAuth()
   const [clinic,   setClinic]  = useState(null)
   const [loading,  setLoading] = useState(true)
   const [toast,    setToast]   = useState('')
-  const [editing,  setEditing] = useState(false)
-  const [form,     setForm]    = useState({})
+  const [modal,    setModal]   = useState(null)  // null | 'add' | 'edit' | 'view'
+  const [selected, setSelected] = useState(null)
+  const [form,     setForm]    = useState(EMPTY_SVC)
+  const [saving,   setSaving]  = useState(false)
+  const [editingInfo, setEditingInfo] = useState(false)
+  const [infoForm, setInfoForm] = useState({})
 
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(''), 3000) }
+  const clinicId  = user?.clinicId
 
-  useEffect(() => {
-    const id = user?.clinicId
-    if (!id) { setLoading(false); return }
-    clinicsApi.get(id)
-      .then(r => { setClinic(r.data); setForm(r.data) })
-      .catch(() => {})
+  const load = () => {
+    if (!clinicId) { setLoading(false); return }
+    setLoading(true)
+    clinicsApi.get(clinicId)
+      .then(r => { setClinic(r.data); setInfoForm(r.data) })
+      .catch(() => showToast('Failed to load clinic data'))
       .finally(() => setLoading(false))
-  }, [user?.clinicId])
+  }
+  useEffect(load, [clinicId])
 
-  const handleSave = async () => {
+  const saveInfo = async () => {
     try {
-      const r = await clinicsApi.update(clinic._id, form)
-      setClinic(r.data)
-      setEditing(false)
-      showToast('Clinic info updated successfully')
+      const r = await clinicsApi.update(clinic._id, infoForm)
+      setClinic(r.data); setEditingInfo(false)
+      showToast('Clinic info updated')
     } catch { showToast('Failed to update clinic info') }
   }
 
-  if (loading) return <div style={{padding:40,textAlign:'center',color:'var(--muted)'}}>Loading clinic info…</div>
-  if (!clinic) return <div style={{padding:40,textAlign:'center',color:'var(--muted)'}}>No clinic assigned to your account.</div>
+  const openAdd  = () => { setSelected(null); setForm(EMPTY_SVC); setModal('add') }
+  const openEdit = (svc, idx) => { setSelected({ svc, idx }); setForm({ ...EMPTY_SVC, ...svc }); setModal('edit') }
+  const openView = (svc, idx) => { setSelected({ svc, idx }); setModal('view') }
+  const close    = () => { setModal(null); setSelected(null) }
+
+  const saveService = async () => {
+    if (!form.name.trim()) { showToast('Service name is required'); return }
+    setSaving(true)
+    try {
+      const services = [...(clinic.services || [])]
+      if (modal === 'edit' && selected !== null) {
+        services[selected.idx] = { ...services[selected.idx], ...form }
+      } else {
+        services.push(form)
+      }
+      const r = await clinicsApi.update(clinic._id, { services })
+      setClinic(r.data)
+      showToast(modal === 'edit' ? 'Service updated' : 'Service added')
+      close(); load()
+    } catch { showToast('Failed to save service') }
+    finally { setSaving(false) }
+  }
+
+  const deleteService = async (idx) => {
+    if (!confirm('Remove this service?')) return
+    const services = [...(clinic.services || [])]
+    services.splice(idx, 1)
+    try {
+      const r = await clinicsApi.update(clinic._id, { services })
+      setClinic(r.data)
+      showToast('Service removed')
+    } catch { showToast('Failed to remove service') }
+  }
+
+  const toggleAvailable = async (idx) => {
+    const services = [...(clinic.services || [])]
+    services[idx] = { ...services[idx], isAvailable: !services[idx].isAvailable }
+    try {
+      const r = await clinicsApi.update(clinic._id, { services })
+      setClinic(r.data)
+    } catch { showToast('Failed to update service') }
+  }
+
+  if (loading) return <div style={{ padding:40, textAlign:'center', color:'var(--muted)' }}>Loading clinic info…</div>
+  if (!clinic) return <div style={{ padding:40, textAlign:'center', color:'var(--muted)' }}>No clinic assigned to your account.</div>
 
   const services = clinic.services || []
 
@@ -40,130 +90,137 @@ export default function ServicesPage() {
     <div className={styles.page}>
       {toast && <div className={styles.toast}>{toast}</div>}
 
-      {/* Header */}
       <div className={styles.header}>
         <div>
           <div className={styles.title}>{clinic.name}</div>
-          <div className={styles.sub}>{clinic.facilityType || 'Health Clinic'} • {clinic.city}, {clinic.province}</div>
+          <div className={styles.sub}>{clinic.facilityType || 'Health Clinic'} · {clinic.city}, {clinic.province}</div>
         </div>
-        <div style={{display:'flex',gap:8}}>
-          {editing
+        <div style={{ display:'flex', gap:8 }}>
+          {editingInfo
             ? <>
-                <button className="btn btn-outline" onClick={()=>setEditing(false)}>Cancel</button>
-                <button className="btn btn-primary" onClick={handleSave}>Save Changes</button>
+                <button className="btn btn-outline" onClick={() => setEditingInfo(false)}>Cancel</button>
+                <button className="btn btn-primary" onClick={saveInfo}>Save Info</button>
               </>
-            : <button className="btn btn-outline" onClick={()=>setEditing(true)}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                Edit Info
-              </button>
+            : <button className="btn btn-outline" onClick={() => setEditingInfo(true)}>Edit Clinic Info</button>
           }
+          <button className="btn btn-primary" onClick={openAdd}>+ Add Service</button>
         </div>
       </div>
 
-      <div className={styles.layoutGrid}>
-        
-        {/* Left Column — Facility Info & Settings */}
-        <div className={styles.columnWrap}>
-          <div className={`card ${styles.sectionBox}`}>
-            <div className={styles.sectionHeader}>Facility Information</div>
-            <div className={styles.infoList}>
-              <InfoRow label="Address"         value={clinic.address} editing={editing} field="address" form={form} setForm={setForm} />
-              <InfoRow label="Contact Number"  value={clinic.contactNumber} editing={editing} field="contactNumber" form={form} setForm={setForm} />
-              <InfoRow label="Email"           value={clinic.email} editing={editing} field="email" form={form} setForm={setForm} />
-              <InfoRow label="Operating Hours" value={clinic.operatingHours} editing={editing} field="operatingHours" form={form} setForm={setForm} />
-              <InfoRow label="Max Queue Cap."  value={clinic.maxQueueCapacity} editing={editing} field="maxQueueCapacity" form={form} setForm={setForm} type="number" />
-            </div>
-          </div>
-
-          <div className={`card ${styles.sectionBox}`}>
-            <div className={styles.sectionHeader}>Queue Settings</div>
-            <div className={styles.settingRow}>
-              <div>
-                <div className={styles.settingTitle}>Accepts Walk-in</div>
-                <div className={styles.settingSub}>Allow patients to join without appointment</div>
+      {/* Clinic Info */}
+      {editingInfo && (
+        <div className="card" style={{ padding:20 }}>
+          <div style={{ fontWeight:700, marginBottom:14, color:'var(--text)' }}>Edit Clinic Information</div>
+          <div className={styles.formGrid2}>
+            {[['address','Address'],['contactNumber','Contact Number'],['email','Email'],['operatingHours','Operating Hours']].map(([f,l]) => (
+              <div key={f} className="form-group">
+                <label className="form-label">{l}</label>
+                <input className="form-input" value={infoForm[f]||''} onChange={e=>setInfoForm(p=>({...p,[f]:e.target.value}))} />
               </div>
-              <Toggle
-                value={editing ? form.acceptsWalkIn : clinic.acceptsWalkIn}
-                onChange={v => setForm(f => ({...f, acceptsWalkIn: v}))}
-                disabled={!editing}
-              />
-            </div>
-            <div className={styles.settingRow}>
-              <div>
-                <div className={styles.settingTitle}>Accepts Appointments</div>
-                <div className={styles.settingSub}>Allow patients to book appointment slots</div>
-              </div>
-              <Toggle
-                value={editing ? form.acceptsAppointment : clinic.acceptsAppointment}
-                onChange={v => setForm(f => ({...f, acceptsAppointment: v}))}
-                disabled={!editing}
-              />
-            </div>
+            ))}
           </div>
         </div>
+      )}
 
-        {/* Right Column — Services */}
-        <div className={styles.columnWrap}>
-          <div className={`card ${styles.sectionBox}`} style={{height: '100%'}}>
-            <div className={styles.sectionHeader}>Services Offered</div>
-            {services.length === 0
-              ? <div style={{color:'var(--muted)',fontSize:13,padding:'16px 0'}}>No services listed yet.</div>
-              : <div className={styles.servicesWrap}>
-                  {services.map((s, i) => (
-                    <div key={i} className={styles.serviceLineItem}>
-                      <div className={styles.serviceLineIcon}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
-                      </div>
-                      <span className={styles.serviceLineText}>{s.name || s}</span>
-                      <span className="badge badge-green" style={{marginLeft:'auto'}}>Active</span>
-                    </div>
-                  ))}
+      {/* Services List */}
+      <div className="card" style={{ padding:20 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+          <span style={{ fontWeight:700, color:'var(--text)', fontSize:14 }}>
+            Services Offered <span style={{ color:'var(--muted)', fontWeight:400 }}>({services.length})</span>
+          </span>
+        </div>
+
+        {services.length === 0
+          ? <div style={{ textAlign:'center', padding:'30px 0', color:'var(--muted)' }}>
+              No services added yet. Click <strong>+ Add Service</strong> to get started.
+            </div>
+          : <div className={styles.servicesGrid}>
+              {services.map((svc, idx) => (
+                <div key={idx} className={`card ${styles.serviceCard}`} style={{ opacity: svc.isAvailable ? 1 : 0.6 }}>
+                  <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8 }}>
+                    <div className={styles.serviceName}>{svc.name}</div>
+                    <span className={`badge ${svc.isAvailable ? 'badge-green' : 'badge-gray'}`}>
+                      {svc.isAvailable ? 'Available' : 'Unavailable'}
+                    </span>
+                  </div>
+                  <div className={styles.serviceDesc}>{svc.description || '—'}</div>
+                  <div className={styles.serviceMeta}>
+                    <span>⏱ {svc.durationMinutes || 30} min</span>
+                  </div>
+                  <div className={styles.serviceActions}>
+                    <button className="btn btn-outline" style={{ fontSize:11, padding:'4px 8px' }}
+                      onClick={() => openView(svc, idx)}>View</button>
+                    <button className="btn btn-outline" style={{ fontSize:11, padding:'4px 8px' }}
+                      onClick={() => openEdit(svc, idx)}>Edit</button>
+                    <button className="btn btn-outline" style={{ fontSize:11, padding:'4px 8px', color:'var(--muted)' }}
+                      onClick={() => toggleAvailable(idx)}>
+                      {svc.isAvailable ? 'Disable' : 'Enable'}
+                    </button>
+                    <button className="btn" style={{ fontSize:11, padding:'4px 8px', color:'var(--error)', background:'var(--error-lt)', border:'none' }}
+                      onClick={() => deleteService(idx)}>Remove</button>
+                  </div>
                 </div>
-            }
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function InfoRow({ label, value, editing, field, form, setForm, type='text' }) {
-  return (
-    <div className={styles.infoRow}>
-      <div className={styles.infoLabel}>{label}</div>
-      <div className={styles.infoContent}>
-        {editing
-          ? <input 
-              className="form-input" 
-              type={type}
-              value={form[field] ?? ''} 
-              onChange={e => setForm(f => ({...f, [field]: type === 'number' ? Number(e.target.value) : e.target.value}))} 
-              style={{width: '100%', padding: '8px 12px'}}
-            />
-          : <div className={styles.infoValue}>{value ?? '—'}</div>
+              ))}
+            </div>
         }
       </div>
-    </div>
-  )
-}
 
-function Toggle({ value, onChange, disabled }) {
-  return (
-    <button
-      style={{ 
-        width: 44, height: 24, borderRadius: 99, 
-        background: value ? 'var(--primary)' : 'var(--muted-lt, #CBD5E1)', 
-        border: 'none', cursor: disabled ? 'default' : 'pointer', 
-        position: 'relative', flexShrink: 0, transition: 'background .2s',
-        opacity: disabled ? 0.6 : 1
-      }}
-      onClick={() => !disabled && onChange(!value)}
-    >
-      <span style={{ 
-        position: 'absolute', top: 3, left: value ? 23 : 3, 
-        width: 18, height: 18, background: '#fff', borderRadius: '50%', 
-        transition: 'left .2s', display: 'block', boxShadow: '0 1px 3px rgba(0,0,0,.2)' 
-      }} />
-    </button>
+      {/* Modal */}
+      {modal && modal !== 'view' && (
+        <div className="modal-overlay" onClick={close}>
+          <div className="modal" style={{ maxWidth:440 }} onClick={e=>e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">{modal === 'edit' ? 'Edit Service' : 'Add New Service'}</span>
+              <button className="modal-close" onClick={close}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">Service Name <span style={{color:'var(--error)'}}>*</span></label>
+                <input className="form-input" value={form.name} onChange={e=>setForm(p=>({...p,name:e.target.value}))} placeholder="e.g. General Consultation" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Description</label>
+                <textarea className="form-input" rows={2} value={form.description} onChange={e=>setForm(p=>({...p,description:e.target.value}))} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Duration (minutes)</label>
+                <input className="form-input" type="number" min={5} value={form.durationMinutes}
+                  onChange={e=>setForm(p=>({...p,durationMinutes:Number(e.target.value)}))} />
+              </div>
+              <div className="form-group" style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <input type="checkbox" checked={!!form.isAvailable}
+                  onChange={e=>setForm(p=>({...p,isAvailable:e.target.checked}))} id="avail" />
+                <label htmlFor="avail" style={{ cursor:'pointer', color:'var(--text-2)' }}>Currently available</label>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={close}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveService} disabled={saving}>
+                {saving ? 'Saving…' : modal === 'edit' ? 'Save Changes' : 'Add Service'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {modal === 'view' && selected && (
+        <div className="modal-overlay" onClick={close}>
+          <div className="modal" style={{ maxWidth:380 }} onClick={e=>e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">{selected.svc.name}</span>
+              <button className="modal-close" onClick={close}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p><strong>Description:</strong> {selected.svc.description || '—'}</p>
+              <p><strong>Duration:</strong> {selected.svc.durationMinutes || 30} minutes</p>
+              <p><strong>Status:</strong> {selected.svc.isAvailable ? 'Available' : 'Unavailable'}</p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={close}>Close</button>
+              <button className="btn btn-primary" onClick={() => { close(); openEdit(selected.svc, selected.idx) }}>Edit</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
