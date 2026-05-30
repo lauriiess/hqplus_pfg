@@ -178,7 +178,10 @@ export default function UserManagementPage() {
   }))
 
   const saveRole = () => {
-    if (!roleForm.name.trim()) { showToast('Role name is required'); return }
+    if (!roleForm.name.trim()) {
+  setRoleForm(f => ({ ...f, error: 'Role name is required' }))
+  return
+}
     if (roleModal === 'edit' && editingRole?.type === 'system') {
       showToast('System roles cannot be modified'); return
     }
@@ -234,7 +237,7 @@ export default function UserManagementPage() {
 
   return (
     <div className={styles.page}>
-      {toast && <div style={{position:'fixed', top:24, right:24, background:'#1F2937', color:'#fff', padding:'10px 18px', borderRadius:8, zIndex:9999, fontSize:13, fontWeight:500, boxShadow:'0 4px 20px rgba(0,0,0,0.2)'}}>{toast}</div>}
+      {toast && <div style={{position:'fixed', top:24, right:24, background:'#1F2937', color:'#fff', padding:'10px 18px', borderRadius:8, zIndex:20000, fontSize:13, fontWeight:500, boxShadow:'0 4px 20px rgba(0,0,0,0.2)'}}>{toast}</div>}
 
       {/* HEADER SECTION */}
       <div className={styles.header}>
@@ -580,13 +583,35 @@ export default function UserManagementPage() {
                   System roles are read-only. Duplicate this role to create a custom variant.
                 </div>
               )}
-              <div className="form-group" style={{marginBottom: 16}}>
-                <label className="form-label" style={{fontWeight:600, fontSize:12, color:'var(--text-2)'}}>Role Name *</label>
-                <input className="form-input" style={{width:'100%', padding:'10px 14px', borderRadius:8, border:'1px solid var(--border)'}} value={roleForm.name}
-                  onChange={e=>setRoleForm(f=>({...f,name:e.target.value}))}
-                  placeholder="e.g. Administrator, Lab Staff, etc."
-                  disabled={roleModal==='edit' && editingRole?.type==='system'} />
-              </div>
+             <div className="form-group" style={{marginBottom: 16}}>
+  <label className="form-label" style={{fontWeight:600, fontSize:12, color:'var(--text-2)'}}>
+    Role Name *
+  </label>
+
+  <input className="form-input" style={{
+      width:'100%',
+      padding:'10px 14px',
+      borderRadius:8,
+      border: roleForm.error
+        ? '1px solid #DC2626'
+        : '1px solid var(--border)'
+    }}
+    value={roleForm.name}
+    onChange={e => setRoleForm(f => ({ ...f, name:e.target.value,  error:'' })) } placeholder="e.g. Administrator, Lab Staff, etc." />
+
+  {roleForm.error && (
+    <div
+      style={{
+        color:'#DC2626',
+        fontSize:12,
+        marginTop:6,
+        fontWeight:500,
+      }}
+    >
+      {roleForm.error}
+    </div>
+  )}
+</div>
               <div className="form-group" style={{marginBottom: 16}}>
                 <label className="form-label" style={{fontWeight:600, fontSize:12, color:'var(--text-2)'}}>Description</label>
                 <input className="form-input" style={{width:'100%', padding:'10px 14px', borderRadius:8, border:'1px solid var(--border)'}} value={roleForm.desc}

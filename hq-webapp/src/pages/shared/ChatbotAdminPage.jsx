@@ -10,7 +10,7 @@ const CAT_BADGE  = {
   'Account':           'badge-purple',
   'Clinic':            'badge-orange',
 }
-const EMPTY_FORM = { question: '', answer: '', category: 'General Info', keywords: '', isActive: true }
+const EMPTY_FORM = { question: '', answer: '', category: 'General Info', keywords: '', isActive: true,  errors: {} }
 
 export default function ChatbotAdminPage() {
   const [tab,      setTab]     = useState('Responses')
@@ -62,12 +62,22 @@ export default function ChatbotAdminPage() {
     })
     setModal('edit')
   }
-  const close = () => { setModal(null); setEditing(null) }
+  const close = () => { setModal(null); setEditing(null), setForm(EMPTY_FORM) }
 
   const save = async () => {
-    if (!form.question.trim() || !form.answer.trim()) {
-      showToast('Question/Intent and Answer are required'); return
-    }
+    const errors = {}
+      if (!form.question.trim()) {
+        errors.question = 'Question / Intent is required'
+      }
+
+      if (!form.answer.trim()) {
+        errors.answer = 'Answer is required'
+      }
+
+      if (Object.keys(errors).length > 0) {
+        setForm(f => ({ ...f, errors }))
+        return
+      }
     setSaving(true)
     try {
       const payload = {
@@ -305,15 +315,30 @@ export default function ChatbotAdminPage() {
             <div className="modal-body">
               <div className="form-group">
                 <label className="form-label">Question / Intent *</label>
-                <input className="form-input" value={form.question}
-                  onChange={e=>setForm(f=>({...f,question:e.target.value}))}
-                  placeholder="e.g. How do I book an appointment?" />
+                <input className="form-input" value={form.question} 
+                  style={{ border: form.errors?.question ? '1px solid #DC2626' : undefined }}
+                    onChange={e => setForm(f => ({ ...f, question: e.target.value, errors: { ...f.errors, question: '' } }))}
+                    placeholder="e.g. How do I book an appointment?"  />
+                  {form.errors?.question && ( <div style={{ color:'#DC2626', fontSize:12, marginTop:6, fontWeight:500, }} >
+                      {form.errors.question}
+                    </div>
+                  )}
               </div>
               <div className="form-group">
                 <label className="form-label">Answer *</label>
-                <textarea className="form-textarea" rows={4} value={form.answer}
-                  onChange={e=>setForm(f=>({...f,answer:e.target.value}))}
-                  placeholder="Type the chatbot's response…" />
+                <textarea
+                  className="form-textarea" rows={4} value={form.answer}
+                  style={{ border: form.errors?.answer ? '1px solid #DC2626' : undefined }}
+                  onChange={e => setForm(f => ({ ...f,  answer: e.target.value, errors: { ...f.errors, answer: '' }
+                  }))}
+                  placeholder="Type the chatbot's response…"
+                />
+
+                {form.errors?.answer && (
+                  <div style={{ color:'#DC2626', fontSize:12, marginTop:6, fontWeight:500, }}>
+                    {form.errors.answer}
+                  </div>
+                )}
               </div>
               <div className="form-group">
                 <label className="form-label">Keywords</label>

@@ -104,6 +104,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={e => setPass(e.target.value)}
                 autoComplete="current-password"
+                style={{ paddingRight: 44, appearance: 'none' }}
               />
               <button type="button" className={styles.eyeBtn} onClick={() => setShowPw(v => !v)}>
                 {showPw ? <EyeOff /> : <EyeOn />}

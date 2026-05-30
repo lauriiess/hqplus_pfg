@@ -10,7 +10,7 @@ const GENDERS     = ['Male','Female','Other','Prefer not to say']
 
 const EMPTY_FORM = {
   fullName: '', email: '', phone: '', gender: 'Male',
-  role: 'doctor', specialization: '', licenseNumber: '', status: 'active',
+  role: 'doctor', specialization: '', licenseNumber: '', status: 'active', errors:{},
 }
 
 export default function StaffPage() {
@@ -64,9 +64,19 @@ export default function StaffPage() {
       showToast('Your account is not linked to a clinic. Please contact System Administrator.')
       return
     }
-    if (!form.fullName.trim() || !form.email.trim()) {
-      showToast('Name and email are required'); return
-    }
+    const errors = {}
+      if (!form.fullName.trim()) {
+        errors.fullName = 'Full name is required'
+      }
+
+      if (!form.email.trim()) {
+        errors.email = 'Email is required'
+      }
+
+      if (Object.keys(errors).length > 0) {
+        setForm(f => ({ ...f, errors }))
+        return
+      }
     setSaving(true)
     try {
       const payload = {
@@ -126,11 +136,24 @@ export default function StaffPage() {
     <div className="form-group">
       <label className="form-label">{label}</label>
       {opts
-        ? <select className="form-select" value={form[field] ?? ''} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}>
+        ? <select className="form-select" value={form[field] ?? ''}  style={{ border: form.errors?.[field] ? '1px solid #DC2626' : undefined }} 
+          onChange={e => setForm(f => ({ ...f, [field]: e.target.value,
+            errors: { ...f.errors, [field]: '' }
+          }))
+        }>
             {opts.map(o => <option key={o.value ?? o} value={o.value ?? o}>{o.label ?? o}</option>)}
           </select>
-        : <input className="form-input" type={type} value={form[field] ?? ''}
-            onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} />
+        : <>
+        <input className="form-input" type={type} value={form[field] ?? ''} style={{ border: form.errors?.[field] ? '1px solid #DC2626' : undefined }}
+          onChange={e => setForm(f => ({ ...f, [field]: e.target.value, errors: { ...f.errors, [field]: ''}}))}
+        />
+
+        {form.errors?.[field] && (
+          <div style={{ color:'#DC2626', fontSize:12, marginTop:6, fontWeight:500,}} >
+            {form.errors[field]}
+          </div>
+        )}
+        </>
       }
     </div>
   )
@@ -145,12 +168,12 @@ export default function StaffPage() {
       )}
 
       <div className="card">
-        <div className={styles.header}>
+        <div className={styles.header} style={{ padding: '20px 24px', }}>
           <div>
             <div className={styles.title}>Staff Management</div>
             <div className={styles.sub}>{staff.length} staff members in this facility</div>
           </div>
-          <div style={{ display:'flex', gap:8 }}>
+          <div style={{ display:'flex', gap:8, alignItems:'flex-start', marginTop:4, }}> 
             <button className="btn btn-outline btn-sm" onClick={exportCSV}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export CSV
@@ -162,16 +185,19 @@ export default function StaffPage() {
           </div>
         </div>
 
-        <div className={styles.toolbar}>
-          <div className="search-bar" style={{ flex:1, maxWidth:300 }}>
+        <div className={styles.toolbar} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 24px 20px', borderBottom: '1px solid var(--border)', }} >
+          <div className="search-bar" style={{ flex: 1, minWidth: 0, maxWidth: 'none', }} >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input placeholder="Search by name or email..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
-          <select className="dropdown-select" value={roleFilter} onChange={e => setRole(e.target.value)}>
+            <select className="dropdown-select" style={{ width: 180, flexShrink: 0, }}
+              value={roleFilter}
+              onChange={e => setRole(e.target.value)}
+            >           
             <option value="All">All Roles</option>
             {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
           </select>
-          <button className="btn btn-outline btn-sm" onClick={load}>
+          <button className="btn btn-outline btn-sm" style={{ flexShrink: 0, whiteSpace: 'nowrap', }} onClick={load}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
             Refresh
           </button>

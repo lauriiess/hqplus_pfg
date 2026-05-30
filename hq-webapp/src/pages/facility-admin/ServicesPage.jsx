@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext'
 import styles from './facility-admin.module.css'
 
 // Schema: { name, description, durationMinutes, isAvailable }
-const EMPTY_SVC = { name: '', description: '', durationMinutes: 30, isAvailable: true }
+const EMPTY_SVC = { name: '', description: '', durationMinutes: 30, isAvailable: true, errors: {} }
 
 export default function ServicesPage() {
   const { user }    = useAuth()
@@ -51,10 +51,14 @@ export default function ServicesPage() {
     setModal('edit')
   }
   const openView = (svc, idx) => { setSelected({ svc, idx }); setModal('view') }
-  const close    = () => { setModal(null); setSelected(null) }
+  const close    = () => { setModal(null); setSelected(null);  setForm(EMPTY_SVC) }
 
   const saveService = async () => {
-    if (!form.name.trim()) { showToast('Service name is required'); return }
+    if (!form.name.trim()) { setForm(p => ({ ...p,
+    errors: { ...p.errors, name: 'Service name is required' }
+  }))
+  return
+}
     setSaving(true)
     try {
       const services = [...(clinic.services || [])]
@@ -202,9 +206,17 @@ export default function ServicesPage() {
             <div className="modal-body">
               <div className="form-group">
                 <label className="form-label">Service Name <span style={{ color:'var(--error)' }}>*</span></label>
-                <input className="form-input" value={form.name}
-                  onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                  placeholder="e.g. Laboratory" />
+                <input className="form-input" value={form.name} style={{ border: form.errors?.name ? '1px solid #DC2626'  : undefined  }}
+                  onChange={e => setForm(p => ({ ...p,  name: e.target.value,  errors: {  ...p.errors,   name: ''  }  }))
+                  }
+                  placeholder="e.g. Laboratory"
+                />
+
+                {form.errors?.name && (
+                  <div  style={{  color: '#DC2626',  fontSize: 12,  marginTop: 6,  fontWeight: 500,  }}  >
+                    {form.errors.name}
+                  </div>
+                )}
               </div>
               <div className="form-group">
                 <label className="form-label">Description</label>

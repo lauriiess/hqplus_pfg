@@ -21,7 +21,7 @@ const genderBadge = (g) => {
 const EMPTY_FORM = {
   fullName:'', email:'', phone:'', dob:'', gender:'Male',
   address:'', patientType:'Regular', philHealthNumber:'',
-  hmoProvider:'', bloodType:'', allergies:'', medicalNotes:'',
+  hmoProvider:'', bloodType:'', allergies:'', medicalNotes:'', errors:{},
 }
 
 export default function PatientsPage() {
@@ -70,7 +70,15 @@ export default function PatientsPage() {
   const close = () => { setModal(null); setSelected(null) }
 
   const save = async () => {
-    if (!form.fullName.trim()) { showToast('Full name is required'); return }
+    const errors = {}
+      if (!form.fullName.trim()) {
+        errors.fullName = 'Full name is required'
+      }
+
+      if (Object.keys(errors).length > 0) {
+        setForm(f => ({ ...f, errors }))
+        return
+      }
     setSaving(true)
     try {
       if (modal === 'edit') await api.put(`/api/patients/${selected._id}`, form)
@@ -117,10 +125,41 @@ export default function PatientsPage() {
   const fld = (field, label, type='text') => (
     <div className="form-group">
       <label className="form-label">{label}</label>
-      <input className="form-input" type={type}
-        value={form[field] || ''}
-        onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))}
-      />
+      <>
+  <input
+    className="form-input"
+    type={type}
+    value={form[field] || ''}
+    style={{
+      border: form.errors?.[field]
+        ? '1px solid #DC2626'
+        : undefined
+    }}
+    onChange={e =>
+      setForm(f => ({
+        ...f,
+        [field]: e.target.value,
+        errors: {
+          ...f.errors,
+          [field]: ''
+        }
+      }))
+    }
+  />
+
+  {form.errors?.[field] && (
+    <div
+      style={{
+        color:'#DC2626',
+        fontSize:12,
+        marginTop:6,
+        fontWeight:500,
+      }}
+    >
+      {form.errors[field]}
+    </div>
+  )}
+</>
     </div>
   )
 
@@ -140,27 +179,47 @@ export default function PatientsPage() {
 
       <div className="card">
         {/* Header */}
-        <div className={styles.header}>
+        <div className={styles.header}style={{ padding: '20px 24px', justifyContent: 'space-between', alignItems: 'center',}} >
           <div>
             <div className={styles.title}>Patient Records</div>
             <div className={styles.sub}>{patients.length} total patients</div>
           </div>
-          <div style={{ display:'flex', gap:8 }}>
+          <div style={{ display:'flex', gap:8, alignItems:'flex-start', marginTop:4, }}>
             <button className="btn btn-outline" onClick={exportCSV}>Export CSV</button>
             <button className="btn btn-primary" onClick={openAdd}>+ Add Patient</button>
           </div>
         </div>
 
         {/* Filters */}
-        <div className={styles.toolbar}>
-          <input className="form-input" style={{ maxWidth:280 }}
+        <div className={styles.toolbar} 
+        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 24px 20px', borderBottom: '1px solid var(--border)', }}>
+          <input className="form-input" 
+          style={{ flex: 1, minWidth: 0, }}
             placeholder="Search name, phone, email…"
-            value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
-          <select className="form-select" value={typeFilter}
-            onChange={e => { setType(e.target.value); setPage(1) }}>
-            {TYPES.map(t => <option key={t}>{t}</option>)}
+            value={search}
+            onChange={e => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
+          />
+
+          <select
+            className="form-select"
+            style={{ width: 180, flexShrink: 0, }}
+            value={typeFilter}
+            onChange={e => {
+              setType(e.target.value)
+              setPage(1)
+            }}
+          >
+            {TYPES.map(t => ( <option key={t}>{t}</option>
+            ))}
           </select>
-          <button className="btn btn-outline" onClick={load}>Refresh</button>
+
+          <button className="btn btn-outline" 
+          style={{ flexShrink: 0, whiteSpace: 'nowrap', }} onClick={load}>
+            Refresh
+          </button>
         </div>
 
         {/* Table */}

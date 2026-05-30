@@ -4,7 +4,7 @@ import styles from './super-admin.module.css'
 
 const STATUS_BADGE = { open:'badge-green', active:'badge-green', busy:'badge-warn', closed:'badge-gray', maintenance:'badge-warn', inactive:'badge-gray' }
 const EMPTY_FORM = {
-  name:'', address:'', city:'', province:'', contactNumber:'', email:'',
+  name:'', city:'', errors:{}, address:'', province:'', contactNumber:'', email:'',
   operatingHours:'8:00 AM - 5:00 PM', maxQueueCapacity:60,
   acceptsWalkIn:true, acceptsAppointment:true, status:'open',
   facilityType:'City Health Center', region:'NCR', services:[],
@@ -39,7 +39,20 @@ export default function ClinicManagementPage() {
   const close    = () => { setModal(null); setSelected(null) }
 
   const save = async () => {
-    if (!form.name || !form.city) { showToast('Clinic name and city are required'); return }
+    const errors = {}
+
+if (!form.name.trim()) {
+  errors.name = 'Clinic name is required'
+}
+
+if (!form.city.trim()) {
+  errors.city = 'City is required'
+}
+
+if (Object.keys(errors).length > 0) {
+  setForm(f => ({ ...f, errors }))
+  return
+}
     setSaving(true)
     try {
       if (modal === 'edit') await clinicsApi.update(selected._id, form)
@@ -75,8 +88,44 @@ export default function ClinicManagementPage() {
               <input type="checkbox" checked={!!form[field]} onChange={e=>setForm(f=>({...f,[field]:e.target.checked}))} />
               <span style={{fontSize:13,color:'var(--text-2)'}}>{label}</span>
             </label>
-          : <input className="form-input" type={type} value={form[field]??''}
-              onChange={e=>setForm(f=>({...f,[field]:type==='number'?Number(e.target.value):e.target.value}))} />
+         : <>
+    <input
+      className="form-input"
+      type={type}
+      value={form[field] ?? ''}
+      style={{
+        border: form.errors?.[field]
+          ? '1px solid #DC2626'
+          : undefined
+      }}
+      onChange={e =>
+        setForm(f => ({
+          ...f,
+          [field]:
+            type === 'number'
+              ? Number(e.target.value)
+              : e.target.value,
+          errors: {
+            ...f.errors,
+            [field]: ''
+          }
+        }))
+      }
+    />
+
+    {form.errors?.[field] && (
+      <div
+        style={{
+          color:'#DC2626',
+          fontSize:12,
+          marginTop:6,
+          fontWeight:500,
+        }}
+      >
+        {form.errors[field]}
+      </div>
+    )}
+  </>
       }
     </div>
   )

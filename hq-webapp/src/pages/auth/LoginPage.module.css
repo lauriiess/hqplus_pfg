@@ -230,3 +230,8 @@
   font-size: 12px;
   color: var(--muted);
 }
+
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}

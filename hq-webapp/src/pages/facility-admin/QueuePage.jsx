@@ -24,7 +24,7 @@ export default function QueueAndAppointmentsPage() {
   const [qSearch,     setQSearch]    = useState('')
   const [qStatus,     setQStatus]    = useState('All')
   const [walkinModal, setWalkin]     = useState(false)
-  const [walkinForm,  setWalkinForm] = useState({ patientName:'', phone:'', serviceName:'', patientType:'Regular' })
+  const [walkinForm,  setWalkinForm] = useState({ patientName:'', phone:'', serviceName:'', patientType:'Regular', })
   const [wSaving,     setWSaving]    = useState(false)
 
   // ── Appointment state ──
@@ -37,6 +37,17 @@ export default function QueueAndAppointmentsPage() {
   const [toast,    setToast]   = useState('')
   const clinicId  = user?.clinicId
   const showToast = (m) => { setToast(m); setTimeout(() => setToast(''), 3000) }
+
+  const closeWalkinModal = () => {
+  setWalkin(false)
+  setWalkinForm({
+    patientName: '',
+    phone: '',
+    serviceName: '',
+    patientType: 'Regular',
+    errors: {}
+  })
+}
 
   // ── Load queue ──
   const loadQueue = useCallback(() => {
@@ -70,12 +81,25 @@ export default function QueueAndAppointmentsPage() {
   const qAct = async (fn) => { try { await fn(); loadQueue() } catch { showToast('Action failed') } }
 
   const addWalkin = async () => {
-    if (!walkinForm.patientName || !walkinForm.serviceName) { showToast('Name and service required'); return }
+    const errors = {}
+    if (!walkinForm.patientName.trim()) {
+      errors.patientName = 'Patient name is required'
+    }
+
+    if (!walkinForm.serviceName.trim()) {
+      errors.serviceName = 'Service is required'
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setWalkinForm(f => ({ ...f, errors }))
+      return
+    }
     setWSaving(true)
     try {
       await api.post('/api/queues/add-walkin', { ...walkinForm, clinicId })
-      showToast('Walk-in patient added'); setWalkin(false)
-      setWalkinForm({ patientName:'', phone:'', serviceName:'', patientType:'Regular' })
+      showToast('Walk-in patient added') 
+      closeWalkinModal()
+      setWalkinForm({ patientName:'', phone:'', serviceName:'', patientType:'Regular',  errors: {}  })
       loadQueue()
     } catch (e) { showToast(e?.response?.data?.message || 'Failed to add walk-in') }
     finally { setWSaving(false) }
@@ -295,17 +319,32 @@ export default function QueueAndAppointmentsPage() {
 
       {/* Walk-in Modal */}
       {walkinModal && (
-        <div className="modal-overlay" onClick={() => setWalkin(false)}>
+        <div className="modal-overlay" onClick={closeWalkinModal}>
           <div className="modal" style={{ maxWidth:420 }} onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <span className="modal-title">Add Walk-in Patient</span>
-              <button className="modal-close" onClick={() => setWalkin(false)}>✕</button>
+              <button className="modal-close" onClick={closeWalkinModal}>✕</button>
             </div>
             <div className="modal-body">
               <div className="form-group">
                 <label className="form-label">Patient Name *</label>
-                <input className="form-input" value={walkinForm.patientName} placeholder="Full name"
-                  onChange={e => setWalkinForm(p => ({ ...p, patientName: e.target.value }))} />
+                <input className="form-input" value={walkinForm.patientName} placeholder="Full name" style={{ border: walkinForm.errors?.patientName ? '1px solid #DC2626' : undefined }}
+                  onChange={e =>
+                    setWalkinForm(p => ({
+                      ...p,
+                      patientName: e.target.value,
+                      errors: {
+                        ...p.errors,
+                        patientName: ''
+                      }
+                    }))
+                  }
+                />
+                {walkinForm.errors?.patientName && (
+                  <div style={{ color:'#DC2626', fontSize:12, marginTop:6, fontWeight:500,}} >
+                    {walkinForm.errors.patientName}
+                  </div>
+                )}
               </div>
               <div className="form-group">
                 <label className="form-label">Phone</label>
@@ -315,14 +354,22 @@ export default function QueueAndAppointmentsPage() {
               <div className="form-group">
                 <label className="form-label">Service *</label>
                 {services.length > 0
-                  ? <select className="form-select" value={walkinForm.serviceName}
+                  ? <select className="form-select" value={walkinForm.serviceName} 
+                      style={{ border: walkinForm.errors?.serviceName? '1px solid #DC2626' : undefined }}
                       onChange={e => setWalkinForm(p => ({ ...p, serviceName: e.target.value }))}>
                       <option value="">Select service…</option>
+                     
                       {services.map(s => <option key={s._id||s.name} value={s.name}>{s.name} ({s.durationMinutes} min)</option>)}
                     </select>
+                    
                   : <input className="form-input" value={walkinForm.serviceName} placeholder="e.g. Laboratory"
                       onChange={e => setWalkinForm(p => ({ ...p, serviceName: e.target.value }))} />
-                }
+                    }
+                    {walkinForm.errors?.serviceName && (
+                      <div style={{ color:'#DC2626',fontSize:12, marginTop:6, fontWeight:500, }} >
+                        {walkinForm.errors.serviceName}
+                      </div>
+                    )}
               </div>
               <div className="form-group">
                 <label className="form-label">Patient Type</label>
@@ -333,7 +380,7 @@ export default function QueueAndAppointmentsPage() {
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-outline" onClick={() => setWalkin(false)}>Cancel</button>
+              <button className="btn btn-outline" onClick={closeWalkinModal}>Cancel</button>
               <button className="btn btn-primary" onClick={addWalkin} disabled={wSaving}>{wSaving ? 'Adding…' : 'Add to Queue'}</button>
             </div>
           </div>
