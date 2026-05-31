@@ -34,6 +34,27 @@
 .brandName  { font-size: 16px; font-weight: 700; color: #fff; }
 .brandRole  { font-size: 12px; color: rgba(255, 255, 255, 0.7); }
 
+/* ── LOGO ── */
+.logoBox {
+  width: 35px;
+  height: 35px;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(29, 78, 216, 0.10);
+  flex-shrink: 0;
+}
+
+.logoImg {
+  width: 27px;
+  height: 27px;
+  object-fit: contain;
+  display: block;
+}
+
 /* Nav (Matches flex-1 p-4 space-y-1) */
 .nav {
   flex: 1;

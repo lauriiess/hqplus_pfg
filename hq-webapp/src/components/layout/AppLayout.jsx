@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import styles from './AppLayout.module.css'
+import Logo from '../../assets/img/hq_logo.png'
+
 
 /* ── Nav configs ── */
 const FACILITY_NAV = [
@@ -35,10 +37,13 @@ const SUPER_NAV = [
 ]
 
 const HQ_LOGO = (
-  <svg width="28" height="28" viewBox="0 0 32 32" fill="none">
-    <rect width="32" height="32" rx="8" fill="#2563EB"/>
-    <polyline points="6,20 10,14 14,18 18,10 22,16 26,12" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-  </svg>
+  <div className={styles.logoBox}>
+    <img
+      src={Logo}
+      alt="HealthQueue+"
+      className={styles.logoImg}
+    />
+  </div>
 )
 
 export default function AppLayout({ role }) {
