@@ -49,7 +49,6 @@ const HQ_LOGO = (
 export default function AppLayout({ role }) {
   const { user, logout } = useAuth()
   const navigate          = useNavigate()
-  const [search, setSearch] = useState('')
   const isSuper = role === 'super_admin'
   const navItems = isSuper ? SUPER_NAV : FACILITY_NAV
   const basePath = isSuper ? '/super' : '/facility'
@@ -109,18 +108,6 @@ export default function AppLayout({ role }) {
         <header className={styles.topbar}>
           <div className={styles.pageHeading} id="page-heading" />
           <div className={styles.topRight}>
-            <div className={styles.searchBar}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input
-                placeholder="Search..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-            </div>
-            <button className={styles.bellBtn}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-              <span className={styles.bellDot} />
-            </button>
           </div>
         </header>
 

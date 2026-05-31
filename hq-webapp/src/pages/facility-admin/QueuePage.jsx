@@ -77,9 +77,6 @@ export default function QueueAndAppointmentsPage() {
 
   useEffect(() => { loadQueue(); loadAppts() }, [loadQueue, loadAppts])
 
-  // ── Queue actions ──
-  const qAct = async (fn) => { try { await fn(); loadQueue() } catch { showToast('Action failed') } }
-
   const addWalkin = async () => {
     const errors = {}
     if (!walkinForm.patientName.trim()) {
@@ -105,16 +102,6 @@ export default function QueueAndAppointmentsPage() {
     finally { setWSaving(false) }
   }
 
-  // ── Appointment actions ──
-  const updateApptStatus = async (id, status) => {
-    try { await api.put(`/api/appointments/${id}/status`, { status }); showToast(`Status → ${status}`); loadAppts() }
-    catch { showToast('Failed to update') }
-  }
-  const cancelAppt = async (id) => {
-    if (!confirm('Cancel this appointment?')) return
-    try { await api.put(`/api/appointments/${id}/cancel`); showToast('Cancelled'); loadAppts() }
-    catch { showToast('Failed to cancel') }
-  }
 
   // ── Filtered data ──
   const filteredQ = queue.filter(q => {
@@ -207,7 +194,7 @@ export default function QueueAndAppointmentsPage() {
                     {queue.length === 0 ? 'No queue entries today.' : 'No results match your filter.'}
                   </div>
                 : <table className="table">
-                    <thead><tr><th>Queue #</th><th>Patient</th><th>Service</th><th>Type</th><th>Joined</th><th>Status</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Queue #</th><th>Patient</th><th>Service</th><th>Type</th><th>Joined</th><th>Status</th></tr></thead>
                     <tbody>
                       {filteredQ.map(q => (
                         <tr key={q._id}>
@@ -220,13 +207,6 @@ export default function QueueAndAppointmentsPage() {
                           <td><span className={`badge ${q.queueType==='Priority'?'badge-red':'badge-blue'}`}>{q.queueType||'Regular'}</span></td>
                           <td style={{ fontSize:12 }}>{q.joinedAt ? new Date(q.joinedAt).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '—'}</td>
                           <td><span className={`badge ${STATUS_BADGE[q.status]||'badge-gray'}`}>{q.status}</span></td>
-                          <td>
-                            <div style={{ display:'flex', gap:4 }}>
-                              {q.status==='waiting'  && <button className="btn btn-outline" style={{ fontSize:11, padding:'3px 8px' }} onClick={() => qAct(() => api.put(`/api/queues/${q._id}/call`))}>Call</button>}
-                              {q.status==='serving'  && <button className="btn btn-outline" style={{ fontSize:11, padding:'3px 8px', color:'var(--success)' }} onClick={() => qAct(() => api.put(`/api/queues/${q._id}/complete`))}>Done</button>}
-                              {['waiting','serving'].includes(q.status) && <button className="btn" style={{ fontSize:11, padding:'3px 8px', color:'var(--error)', background:'var(--error-lt)', border:'none' }} onClick={() => qAct(() => api.put(`/api/queues/${q._id}/cancel`))}>Cancel</button>}
-                            </div>
-                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -284,7 +264,7 @@ export default function QueueAndAppointmentsPage() {
               : filteredA.length === 0
                 ? <div style={{ padding:40, textAlign:'center', color:'var(--muted)' }}>No appointments found.</div>
                 : <table className="table">
-                    <thead><tr><th>Patient</th><th>Service</th><th>Date & Time</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Patient</th><th>Service</th><th>Date & Time</th><th>Type</th><th>Status</th></tr></thead>
                     <tbody>
                       {filteredA.map(a => (
                         <tr key={a._id}>
@@ -299,15 +279,6 @@ export default function QueueAndAppointmentsPage() {
                           </td>
                           <td><span className={`badge ${a.patientType==='Regular'?'badge-blue':'badge-red'}`}>{a.patientType||'Regular'}</span></td>
                           <td><span className={`badge ${STATUS_BADGE[a.status]||'badge-gray'}`}>{a.status}</span></td>
-                          <td>
-                            <div style={{ display:'flex', gap:4 }}>
-                              {a.status==='pending'   && <button className="btn btn-outline" style={{ fontSize:11, padding:'3px 8px' }} onClick={() => updateApptStatus(a._id,'confirmed')}>Confirm</button>}
-                              {a.status==='confirmed' && <button className="btn btn-outline" style={{ fontSize:11, padding:'3px 8px' }} onClick={() => updateApptStatus(a._id,'arrived')}>Arrived</button>}
-                              {a.status==='arrived'   && <button className="btn btn-outline" style={{ fontSize:11, padding:'3px 8px' }} onClick={() => updateApptStatus(a._id,'serving')}>Serve</button>}
-                              {a.status==='serving'   && <button className="btn btn-outline" style={{ fontSize:11, padding:'3px 8px', color:'var(--success)' }} onClick={() => updateApptStatus(a._id,'completed')}>Complete</button>}
-                              {!['completed','cancelled'].includes(a.status) && <button className="btn" style={{ fontSize:11, padding:'3px 8px', color:'var(--error)', background:'var(--error-lt)', border:'none' }} onClick={() => cancelAppt(a._id)}>Cancel</button>}
-                            </div>
-                          </td>
                         </tr>
                       ))}
                     </tbody>

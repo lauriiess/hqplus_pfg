@@ -225,15 +225,21 @@ export default function StaffPage() {
                     <td style={{ fontSize:13 }}>{s.phone || '—'}</td>
                     <td><span className={`badge ${s.isActive ? 'badge-green' : 'badge-gray'}`}>{s.isActive ? 'Active' : 'Inactive'}</span></td>
                     <td>
-                      <div style={{ display:'flex', gap:4 }}>
-                        <button className="btn btn-icon btn-outline" title="View" onClick={() => openView(s)}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      <div style={{ display:'flex', gap:6 }}>
+                        <button className="btn btn-outline btn-sm" title="View" onClick={() => openView(s)}
+                          style={{ display:'flex', alignItems:'center', gap:6,}} >
+                          View
                         </button>
-                        <button className="btn btn-icon btn-outline" title="Edit" onClick={() => openEdit(s)}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+
+                        <button className="btn btn-outline btn-sm" title="Edit" onClick={() => openEdit(s)}
+                          style={{ display:'flex',alignItems:'center', gap:6, }} >
+                          Edit
                         </button>
-                        <button className="btn btn-icon" style={{ background:'var(--error-lt)', color:'var(--error)' }} title="Deactivate" onClick={() => remove(s._id)}>
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+
+                        <button className="btn btn-sm"
+                          style={{ background:'var(--error-lt)', color:'var(--error)', display:'flex', alignItems:'center', gap:6, }} title="Delete"
+                          onClick={() => remove(s._id)} >
+                          Delete
                         </button>
                       </div>
                     </td>
