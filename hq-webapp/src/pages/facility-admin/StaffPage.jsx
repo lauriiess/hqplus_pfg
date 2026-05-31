@@ -174,11 +174,11 @@ export default function StaffPage() {
             <div className={styles.sub}>{staff.length} staff members in this facility</div>
           </div>
           <div style={{ display:'flex', gap:8, alignItems:'flex-start', marginTop:4, }}> 
-            <button className="btn btn-outline btn-sm" onClick={exportCSV}>
+            <button className="btn btn-outline" onClick={exportCSV}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export CSV
             </button>
-            <button className="btn btn-primary btn-sm" onClick={openAdd}>
+            <button className="btn btn-primary" onClick={openAdd}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Add Staff
             </button>
@@ -197,7 +197,7 @@ export default function StaffPage() {
             <option value="All">All Roles</option>
             {ROLES.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
           </select>
-          <button className="btn btn-outline btn-sm" style={{ flexShrink: 0, whiteSpace: 'nowrap', }} onClick={load}>
+          <button className="btn btn-outline" style={{ flexShrink: 0, whiteSpace: 'nowrap', }} onClick={load}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
             Refresh
           </button>
